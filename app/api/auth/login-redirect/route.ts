@@ -2,9 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { signToken } from "@/lib/auth";
 import { DEMO_USERS } from "@/lib/demo-users";
 
+const NEXA_URL = "https://nexa-commerce-sage.vercel.app";
+const ERP_URL = "https://malaysia-erp-8cc2.vercel.app";
+
 function handleLogin(email: string | null, password: string | null) {
   if (!email || !password) {
-    return NextResponse.redirect(new URL("http://localhost:5173"), 303);
+    return NextResponse.redirect(new URL(NEXA_URL), 303);
   }
 
   const user = DEMO_USERS.find(
@@ -12,7 +15,7 @@ function handleLogin(email: string | null, password: string | null) {
   );
 
   if (!user) {
-    return NextResponse.redirect(new URL("http://localhost:5173"), 303);
+    return NextResponse.redirect(new URL(NEXA_URL), 303);
   }
 
   const token = signToken({
@@ -22,13 +25,13 @@ function handleLogin(email: string | null, password: string | null) {
   });
 
   const response = NextResponse.redirect(
-    new URL("/dashboard", "http://localhost:3000"),
+    new URL("/dashboard", ERP_URL),
     303
   );
 
   response.cookies.set("erp_token", token, {
     httpOnly: true,
-    secure: false,
+    secure: true,
     sameSite: "lax",
     maxAge: 60 * 60 * 24 * 7,
   });
@@ -43,7 +46,7 @@ function handleLogin(email: string | null, password: string | null) {
     }),
     {
       httpOnly: false,
-      secure: false,
+      secure: true,
       sameSite: "lax",
       maxAge: 60 * 60 * 24 * 7,
     }
@@ -68,6 +71,6 @@ export async function POST(request: NextRequest) {
     const password = formData.get("password") as string;
     return handleLogin(email, password);
   } catch {
-    return NextResponse.redirect(new URL("http://localhost:5173"), 303);
+    return NextResponse.redirect(new URL(NEXA_URL), 303);
   }
 }
