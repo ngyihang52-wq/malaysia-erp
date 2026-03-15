@@ -46,7 +46,7 @@ enum UserRole {
 
 model PlatformIntegration {
   id            String          @id @default(cuid())
-  platform      Platform
+  platform      Platform        @unique
   name          String
   isActive      Boolean         @default(false)
   credentials   Json
