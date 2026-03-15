@@ -4,14 +4,15 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma generate && next build",
+    "postinstall": "prisma generate",
     "start": "next start",
     "lint": "eslint"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.1",
     "@prisma/adapter-pg": "^7.5.0",
-    "@prisma/client": "^7.4.2",
+    "@prisma/client": "^7.5.0",
     "@tanstack/react-query": "^5.90.21",
     "axios": "^1.13.6",
     "bcryptjs": "^3.0.3",
@@ -23,7 +24,7 @@
     "next": "16.1.6",
     "next-auth": "^4.24.13",
     "pg": "^8.20.0",
-    "prisma": "^6.19.2",
+    "prisma": "^7.5.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "recharts": "^3.8.0",
