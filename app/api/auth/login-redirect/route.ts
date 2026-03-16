@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { signToken } from "@/lib/auth";
 import { DEMO_USERS } from "@/lib/demo-users";
+import { ajAuth } from "@/lib/arcjet";
 
 const NEXA_URL = "https://nexa-commerce-sage.vercel.app";
 const ERP_URL = "https://malaysia-erp-8cc2.vercel.app";
@@ -57,6 +58,11 @@ function handleLogin(email: string | null, password: string | null) {
 
 // GET handler — login via query params (used by NexaCommerce redirect)
 export async function GET(request: NextRequest) {
+  const decision = await ajAuth.protect(request);
+  if (decision.isDenied()) {
+    return NextResponse.redirect(new URL(NEXA_URL), 303);
+  }
+
   const { searchParams } = new URL(request.url);
   const email = searchParams.get("email");
   const password = searchParams.get("password");
@@ -66,6 +72,10 @@ export async function GET(request: NextRequest) {
 // POST handler — login via form data
 export async function POST(request: NextRequest) {
   try {
+    const decision = await ajAuth.protect(request);
+    if (decision.isDenied()) {
+      return NextResponse.redirect(new URL(NEXA_URL), 303);
+    }
     const formData = await request.formData();
     const email = formData.get("email") as string;
     const password = formData.get("password") as string;

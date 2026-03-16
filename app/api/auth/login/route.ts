@@ -2,9 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { apiError } from "@/lib/utils";
 import { signToken } from "@/lib/auth";
 import { DEMO_USERS } from "@/lib/demo-users";
+import { ajAuth } from "@/lib/arcjet";
 
 export async function POST(request: NextRequest) {
   try {
+    // Arcjet: strict rate limit + bot detection for login
+    const decision = await ajAuth.protect(request);
+    if (decision.isDenied()) {
+      return apiError("Too many login attempts. Please try again later.", 429);
+    }
+
     const { email, password } = await request.json();
 
     if (!email || !password) {

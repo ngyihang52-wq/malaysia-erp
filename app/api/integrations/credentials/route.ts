@@ -2,12 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { encryptCredentials } from "@/lib/encrypt";
 import { apiError } from "@/lib/utils";
+import { aj } from "@/lib/arcjet";
 
 /**
  * GET /api/integrations/credentials
  * List all platform integrations (credentials masked)
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const decision = await aj.protect(request);
+  if (decision.isDenied()) {
+    return apiError("Request blocked", 403);
+  }
+
   try {
     const integrations = await prisma.platformIntegration.findMany({
       orderBy: { createdAt: "asc" },

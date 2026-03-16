@@ -2,12 +2,19 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { syncProducts, syncOrders } from "@/lib/sync";
 import { apiError } from "@/lib/utils";
+import { ajSync } from "@/lib/arcjet";
 
 /**
  * POST /api/sync?platform=SHOPIFY&type=PRODUCTS
  * Triggers real sync from a platform
  */
 export async function POST(request: NextRequest) {
+  // Arcjet: strict rate limit for sync (expensive operations)
+  const decision = await ajSync.protect(request);
+  if (decision.isDenied()) {
+    return apiError("Too many sync requests. Please wait and try again.", 429);
+  }
+
   const { searchParams } = new URL(request.url);
   const platform = searchParams.get("platform")?.toUpperCase();
   const type = searchParams.get("type")?.toUpperCase() || "PRODUCTS";

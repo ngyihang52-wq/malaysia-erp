@@ -1,8 +1,14 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { apiError } from "@/lib/utils";
+import { aj } from "@/lib/arcjet";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const decision = await aj.protect(request);
+  if (decision.isDenied()) {
+    return apiError("Request blocked", 403);
+  }
+
   try {
     // Aggregate stats
     const [
