@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -95,6 +96,12 @@ export default function LoginPage() {
             </button>
           </form>
 
+          <p className="mt-4 text-center text-sm" style={{ color: "#94a3b8" }}>
+            New client?{" "}
+            <Link href="/register" className="font-medium" style={{ color: "#2563eb" }}>
+              Create your account →
+            </Link>
+          </p>
         </div>
 
         {/* Platforms */}

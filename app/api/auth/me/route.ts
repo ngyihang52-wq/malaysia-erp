@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@/lib/auth";
-import { DEMO_USERS } from "@/lib/demo-users";
+import prisma from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -15,15 +15,19 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: false, error: "Invalid token" }, { status: 401 });
   }
 
-  const demoUser = DEMO_USERS.find((u) => u.id === payload.userId);
+  const user = await prisma.user.findUnique({ where: { id: payload.userId } });
+  if (!user) {
+    return NextResponse.json({ success: false, error: "User not found" }, { status: 401 });
+  }
 
   return NextResponse.json({
     success: true,
     data: {
-      id: payload.userId,
-      email: payload.email,
-      role: payload.role,
-      name: demoUser?.name || payload.email.split("@")[0],
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      name: user.name || user.email.split("@")[0],
+      orgId: user.orgId,
     },
   });
 }

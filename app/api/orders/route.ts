@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { apiError } from "@/lib/utils";
+import { requireAuth } from "@/lib/auth";
 import { aj } from "@/lib/arcjet";
 
 export async function GET(request: NextRequest) {
   const decision = await aj.protect(request);
-  if (decision.isDenied()) {
-    return apiError("Request blocked", 403);
-  }
+  if (decision.isDenied()) return apiError("Request blocked", 403);
+
+  const auth = await requireAuth(request).catch(() => null);
+  if (!auth) return apiError("Unauthorized", 401);
 
   const { searchParams } = new URL(request.url);
   const page = parseInt(searchParams.get("page") || "1");
@@ -17,13 +19,9 @@ export async function GET(request: NextRequest) {
   const search = searchParams.get("search") || "";
 
   try {
-    const where: Record<string, unknown> = {};
-    if (status) {
-      where.status = status;
-    }
-    if (platform) {
-      where.integration = { platform };
-    }
+    const where: Record<string, unknown> = { orgId: auth.orgId };
+    if (status) where.status = status;
+    if (platform) where.integration = { platform };
     if (search) {
       where.OR = [
         { orderNumber: { contains: search, mode: "insensitive" } },
@@ -47,8 +45,7 @@ export async function GET(request: NextRequest) {
     ]);
 
     const mapped = orders.map((o) => ({
-      id: o.id,
-      orderNumber: o.orderNumber,
+      id: o.id, orderNumber: o.orderNumber,
       platform: o.integration?.platform || "DIRECT",
       customer: o.customer?.name || "Unknown",
       email: o.customer?.email || "",
@@ -57,8 +54,7 @@ export async function GET(request: NextRequest) {
       shippingFee: Number(o.shippingFee),
       discount: Number(o.discount),
       total: Number(o.total),
-      status: o.status,
-      payment: o.paymentStatus,
+      status: o.status, payment: o.paymentStatus,
       tracking: o.trackingNumber,
       date: o.placedAt?.toISOString() || o.createdAt.toISOString(),
     }));
@@ -77,6 +73,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = await requireAuth(request).catch(() => null);
+  if (!auth) return apiError("Unauthorized", 401);
+
   try {
     const body = await request.json();
     const order = await prisma.order.create({
@@ -85,6 +84,7 @@ export async function POST(request: NextRequest) {
         subtotal: body.subtotal || 0,
         total: body.total || 0,
         status: body.status || "PENDING",
+        orgId: auth.orgId,
       },
     });
     return NextResponse.json({ success: true, data: { order } }, { status: 201 });

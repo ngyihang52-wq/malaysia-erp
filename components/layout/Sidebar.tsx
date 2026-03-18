@@ -7,29 +7,30 @@ const navItems = [
   {
     label: "Main",
     items: [
-      { href: "/dashboard", icon: "⊞", label: "Dashboard" },
-      { href: "/sql-console", icon: "🖥️", label: "SQL Console" },
-      { href: "/orders", icon: "📦", label: "Orders" },
-      { href: "/products", icon: "🏷️", label: "Products" },
-      { href: "/inventory", icon: "🏭", label: "Inventory" },
-      { href: "/customers", icon: "👥", label: "Customers" },
+      { href: "/dashboard", icon: "⊞", label: "Dashboard", adminOnly: false },
+      { href: "/sql-console", icon: "🖥️", label: "SQL Console", adminOnly: false },
+      { href: "/orders", icon: "📦", label: "Orders", adminOnly: false },
+      { href: "/products", icon: "🏷️", label: "Products", adminOnly: false },
+      { href: "/inventory", icon: "🏭", label: "Inventory", adminOnly: false },
+      { href: "/customers", icon: "👥", label: "Customers", adminOnly: false },
+      { href: "/users", icon: "👤", label: "Users", adminOnly: true },
     ],
   },
   {
     label: "Channels",
     items: [
-      { href: "/integrations", icon: "🔗", label: "Integrations" },
-      { href: "/integrations/shopify", icon: "🟢", label: "Shopify" },
-      { href: "/integrations/tiktok", icon: "⚫", label: "TikTok Shop" },
-      { href: "/integrations/shopee", icon: "🟠", label: "Shopee" },
-      { href: "/integrations/lazada", icon: "🔵", label: "Lazada" },
-      { href: "/integrations/amazon", icon: "🟡", label: "Amazon MY" },
+      { href: "/integrations", icon: "🔗", label: "Integrations", adminOnly: false },
+      { href: "/integrations/shopify", icon: "🟢", label: "Shopify", adminOnly: false },
+      { href: "/integrations/tiktok", icon: "⚫", label: "TikTok Shop", adminOnly: false },
+      { href: "/integrations/shopee", icon: "🟠", label: "Shopee", adminOnly: false },
+      { href: "/integrations/lazada", icon: "🔵", label: "Lazada", adminOnly: false },
+      { href: "/integrations/amazon", icon: "🟡", label: "Amazon MY", adminOnly: false },
     ],
   },
   {
     label: "Analytics",
     items: [
-      { href: "/reports", icon: "📊", label: "Reports" },
+      { href: "/reports", icon: "📊", label: "Reports", adminOnly: false },
     ],
   },
 ];
@@ -75,7 +76,9 @@ export default function Sidebar() {
               {section.label}
             </div>
             <div className="space-y-0.5">
-              {section.items.map((item) => (
+              {section.items
+                .filter((item) => !item.adminOnly || user?.role === "ADMIN" || user?.role === "SUPER_ADMIN")
+                .map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}

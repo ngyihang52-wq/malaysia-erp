@@ -3,6 +3,7 @@ import { createShopifyClient } from "@/lib/integrations/shopify";
 import { createShopeeClient } from "@/lib/integrations/shopee";
 import { createLazadaClient } from "@/lib/integrations/lazada";
 import { apiError } from "@/lib/utils";
+import { requireAuth } from "@/lib/auth";
 
 /**
  * POST /api/integrations/credentials/test
@@ -10,6 +11,9 @@ import { apiError } from "@/lib/utils";
  * Body: { platform: "SHOPIFY", credentials: { shopDomain, accessToken } }
  */
 export async function POST(request: NextRequest) {
+  const auth = await requireAuth(request).catch(() => null);
+  if (!auth) return apiError("Unauthorized", 401);
+
   try {
     const body = await request.json();
     const { platform, credentials } = body;

@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { apiError } from "@/lib/utils";
+import { requireAuth } from "@/lib/auth";
 import { aj } from "@/lib/arcjet";
 
 export async function GET(request: NextRequest) {
   const decision = await aj.protect(request);
-  if (decision.isDenied()) {
-    return apiError("Request blocked", 403);
-  }
+  if (decision.isDenied()) return apiError("Request blocked", 403);
+
+  const auth = await requireAuth(request).catch(() => null);
+  if (!auth) return apiError("Unauthorized", 401);
 
   const { searchParams } = new URL(request.url);
   const page = parseInt(searchParams.get("page") || "1");
@@ -15,11 +17,12 @@ export async function GET(request: NextRequest) {
   const search = searchParams.get("search") || "";
 
   try {
-    // Get warehouses
-    const warehouses = await prisma.warehouse.findMany({ orderBy: { isDefault: "desc" } });
+    const warehouses = await prisma.warehouse.findMany({
+      where: { orgId: auth.orgId },
+      orderBy: { isDefault: "desc" },
+    });
 
-    // Get inventory items grouped by product
-    const where: Record<string, unknown> = {};
+    const where: Record<string, unknown> = { warehouse: { orgId: auth.orgId } };
     if (search) {
       where.product = {
         OR: [
@@ -44,7 +47,6 @@ export async function GET(request: NextRequest) {
       prisma.inventoryItem.count({ where }),
     ]);
 
-    // Get recent movements
     const movements = await prisma.inventoryMovement.findMany({
       orderBy: { createdAt: "desc" },
       take: 50,
@@ -52,29 +54,24 @@ export async function GET(request: NextRequest) {
         inventoryItem: {
           include: {
             product: { select: { sku: true, name: true } },
-            warehouse: { select: { name: true } },
+            warehouse: { select: { name: true, orgId: true } },
           },
         },
       },
+      where: { inventoryItem: { warehouse: { orgId: auth.orgId } } },
     });
 
     const mappedMovements = movements.map((m) => ({
       date: m.createdAt.toISOString(),
       sku: m.inventoryItem.product.sku,
-      type: m.type,
-      qty: m.quantity,
+      type: m.type, qty: m.quantity,
       reason: m.reason || "",
       warehouse: m.inventoryItem.warehouse.name,
     }));
 
     return NextResponse.json({
       success: true,
-      data: {
-        items,
-        warehouses,
-        movements: mappedMovements,
-        pagination: { page, limit, total, pages: Math.ceil(total / limit) },
-      },
+      data: { items, warehouses, movements: mappedMovements, pagination: { page, limit, total, pages: Math.ceil(total / limit) } },
     });
   } catch (error) {
     return apiError(`Failed to load inventory: ${(error as Error).message}`, 500);

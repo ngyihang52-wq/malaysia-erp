@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { apiError } from "@/lib/utils";
+import { requireAuth } from "@/lib/auth";
 import { aj } from "@/lib/arcjet";
 
 export async function GET(request: NextRequest) {
   const decision = await aj.protect(request);
-  if (decision.isDenied()) {
-    return apiError("Request blocked", 403);
-  }
+  if (decision.isDenied()) return apiError("Request blocked", 403);
+
+  const auth = await requireAuth(request).catch(() => null);
+  if (!auth) return apiError("Unauthorized", 401);
 
   const { searchParams } = new URL(request.url);
   const page = parseInt(searchParams.get("page") || "1");
@@ -16,7 +18,7 @@ export async function GET(request: NextRequest) {
   const platform = searchParams.get("platform") || "";
 
   try {
-    const where: Record<string, unknown> = {};
+    const where: Record<string, unknown> = { orgId: auth.orgId };
     if (search) {
       where.OR = [
         { name: { contains: search, mode: "insensitive" } },
@@ -24,9 +26,7 @@ export async function GET(request: NextRequest) {
         { city: { contains: search, mode: "insensitive" } },
       ];
     }
-    if (platform) {
-      where.platform = platform;
-    }
+    if (platform) where.platform = platform;
 
     const [customers, total] = await Promise.all([
       prisma.customer.findMany({
@@ -46,12 +46,9 @@ export async function GET(request: NextRequest) {
     ]);
 
     const mapped = customers.map((c) => ({
-      id: c.id,
-      name: c.name,
-      email: c.email || "",
-      phone: c.phone || "",
-      city: c.city || "",
-      state: c.state || "",
+      id: c.id, name: c.name,
+      email: c.email || "", phone: c.phone || "",
+      city: c.city || "", state: c.state || "",
       platform: c.platform || "DIRECT",
       orders: c.totalOrders,
       totalSpent: Number(c.totalSpent),

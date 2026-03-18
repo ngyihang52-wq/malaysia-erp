@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { apiError } from "@/lib/utils";
+import { requireAuth } from "@/lib/auth";
 import { aj } from "@/lib/arcjet";
 
 export async function GET(request: NextRequest) {
   const decision = await aj.protect(request);
-  if (decision.isDenied()) {
-    return apiError("Request blocked", 403);
-  }
+  if (decision.isDenied()) return apiError("Request blocked", 403);
+
+  const auth = await requireAuth(request).catch(() => null);
+  if (!auth) return apiError("Unauthorized", 401);
 
   const { searchParams } = new URL(request.url);
   const page = parseInt(searchParams.get("page") || "1");
@@ -16,7 +18,7 @@ export async function GET(request: NextRequest) {
   const category = searchParams.get("category") || "";
 
   try {
-    const where: Record<string, unknown> = { isActive: true };
+    const where: Record<string, unknown> = { isActive: true, orgId: auth.orgId };
     if (search) {
       where.OR = [
         { name: { contains: search, mode: "insensitive" } },
@@ -47,31 +49,24 @@ export async function GET(request: NextRequest) {
       prisma.product.count({ where }),
     ]);
 
-    // Map to page-friendly format
     const mapped = products.map((p) => {
       const channels: Record<string, number> = {};
       for (const cp of p.channelProducts) {
         channels[cp.integration.platform] = Number(cp.sellingPrice);
       }
-
       const stock: Record<string, number> = {};
       let totalStock = 0;
       for (const inv of p.inventoryItems) {
         stock[inv.warehouse.name] = inv.quantity;
         totalStock += inv.quantity;
       }
-
       return {
-        id: p.id,
-        sku: p.sku,
-        name: p.name,
+        id: p.id, sku: p.sku, name: p.name,
         category: p.category || "Uncategorized",
         brand: p.brand || "",
         costPrice: Number(p.costPrice),
         variants: p.variants.length,
-        channels,
-        stock,
-        totalStock,
+        channels, stock, totalStock,
         isActive: p.isActive,
         image: p.images[0] || "",
         images: p.images,
@@ -92,16 +87,17 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = await requireAuth(request).catch(() => null);
+  if (!auth) return apiError("Unauthorized", 401);
+
   try {
     const body = await request.json();
     if (!body.name || !body.sku || body.costPrice === undefined) {
       return apiError("Name, SKU, and cost price are required");
     }
-
     const product = await prisma.product.create({
       data: {
-        sku: body.sku,
-        name: body.name,
+        sku: body.sku, name: body.name,
         description: body.description || "",
         category: body.category || "Uncategorized",
         brand: body.brand || "",
@@ -109,9 +105,9 @@ export async function POST(request: NextRequest) {
         images: body.images || [],
         tags: body.tags || [],
         isActive: true,
+        orgId: auth.orgId,
       },
     });
-
     return NextResponse.json({ success: true, data: { product } }, { status: 201 });
   } catch (error) {
     return apiError(`Failed to create product: ${(error as Error).message}`, 500);

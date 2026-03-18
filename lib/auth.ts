@@ -1,7 +1,6 @@
 import { NextRequest } from "next/server";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
-import prisma from "./db";
 
 const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret";
 
@@ -9,6 +8,7 @@ export interface JWTPayload {
   userId: string;
   email: string;
   role: string;
+  orgId: string;
 }
 
 export function signToken(payload: JWTPayload): string {
@@ -31,33 +31,15 @@ export async function comparePassword(password: string, hash: string): Promise<b
   return bcrypt.compare(password, hash);
 }
 
-export async function getAuthUser(request: NextRequest): Promise<JWTPayload | null> {
-  const authHeader = request.headers.get("authorization");
-  const cookieToken = request.cookies.get("erp_token")?.value;
+export async function requireAuth(request: NextRequest): Promise<JWTPayload> {
+  const token =
+    request.cookies.get("erp_token")?.value ||
+    request.headers.get("authorization")?.replace("Bearer ", "");
 
-  const token = authHeader?.startsWith("Bearer ")
-    ? authHeader.slice(7)
-    : cookieToken;
-
-  if (!token) return null;
+  if (!token) throw new Error("Unauthorized");
 
   const payload = verifyToken(token);
-  if (!payload) return null;
-
-  const session = await prisma.session.findUnique({
-    where: { token },
-    include: { user: true },
-  });
-
-  if (!session || session.expiresAt < new Date()) return null;
+  if (!payload || !payload.orgId) throw new Error("Unauthorized");
 
   return payload;
-}
-
-export async function requireAuth(request: NextRequest): Promise<JWTPayload> {
-  const user = await getAuthUser(request);
-  if (!user) {
-    throw new Error("Unauthorized");
-  }
-  return user;
 }

@@ -2,43 +2,34 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { syncProducts, syncOrders } from "@/lib/sync";
 import { apiError } from "@/lib/utils";
+import { requireAuth } from "@/lib/auth";
 import { ajSync } from "@/lib/arcjet";
 
-/**
- * POST /api/sync?platform=SHOPIFY&type=PRODUCTS
- * Triggers real sync from a platform
- */
 export async function POST(request: NextRequest) {
-  // Arcjet: strict rate limit for sync (expensive operations)
   const decision = await ajSync.protect(request);
-  if (decision.isDenied()) {
-    return apiError("Too many sync requests. Please wait and try again.", 429);
-  }
+  if (decision.isDenied()) return apiError("Too many sync requests. Please wait and try again.", 429);
+
+  const auth = await requireAuth(request).catch(() => null);
+  if (!auth) return apiError("Unauthorized", 401);
 
   const { searchParams } = new URL(request.url);
   const platform = searchParams.get("platform")?.toUpperCase();
   const type = searchParams.get("type")?.toUpperCase() || "PRODUCTS";
 
-  if (!platform) {
-    return apiError("Platform parameter is required");
-  }
+  if (!platform) return apiError("Platform parameter is required");
 
   const validPlatforms = ["SHOPIFY", "SHOPEE", "LAZADA"];
-  if (!validPlatforms.includes(platform)) {
-    return apiError(`Sync supported for: ${validPlatforms.join(", ")}`);
-  }
+  if (!validPlatforms.includes(platform)) return apiError(`Sync supported for: ${validPlatforms.join(", ")}`);
 
   try {
-    // Load integration from DB
     const integration = await prisma.platformIntegration.findUnique({
-      where: { platform: platform as "SHOPIFY" | "SHOPEE" | "LAZADA" },
+      where: { platform_orgId: { platform: platform as "SHOPIFY" | "SHOPEE" | "LAZADA", orgId: auth.orgId } },
     });
 
     if (!integration || !integration.isActive) {
       return apiError(`${platform} integration not found or inactive. Please connect it first.`);
     }
 
-    // Create sync log
     const syncLog = await prisma.syncLog.create({
       data: {
         integrationId: integration.id,
@@ -53,25 +44,17 @@ export async function POST(request: NextRequest) {
 
     try {
       if (type === "PRODUCTS") {
-        recordsCount = await syncProducts(integration);
+        recordsCount = await syncProducts(integration, auth.orgId);
       } else if (type === "ORDERS") {
-        recordsCount = await syncOrders(integration);
+        recordsCount = await syncOrders(integration, auth.orgId);
       } else {
         throw new Error(`Sync type ${type} not yet implemented`);
       }
 
-      // Update sync log as SUCCESS
       await prisma.syncLog.update({
         where: { id: syncLog.id },
-        data: {
-          status: "SUCCESS",
-          recordsCount,
-          completedAt: new Date(),
-          message: `Successfully synced ${recordsCount} ${type.toLowerCase()} from ${platform}`,
-        },
+        data: { status: "SUCCESS", recordsCount, completedAt: new Date(), message: `Successfully synced ${recordsCount} ${type.toLowerCase()} from ${platform}` },
       });
-
-      // Update lastSyncAt on integration
       await prisma.platformIntegration.update({
         where: { id: integration.id },
         data: { lastSyncAt: new Date() },
@@ -80,50 +63,36 @@ export async function POST(request: NextRequest) {
       errorMessage = (syncError as Error).message;
       await prisma.syncLog.update({
         where: { id: syncLog.id },
-        data: {
-          status: "FAILED",
-          completedAt: new Date(),
-          message: `Sync failed: ${errorMessage}`,
-        },
+        data: { status: "FAILED", completedAt: new Date(), message: `Sync failed: ${errorMessage}` },
       });
     }
 
     return NextResponse.json({
       success: !errorMessage,
-      data: {
-        syncId: syncLog.id,
-        platform,
-        type,
-        status: errorMessage ? "FAILED" : "SUCCESS",
-        recordsCount,
-        message: errorMessage || `Successfully synced ${recordsCount} ${type.toLowerCase()}`,
-      },
+      data: { syncId: syncLog.id, platform, type, status: errorMessage ? "FAILED" : "SUCCESS", recordsCount, message: errorMessage || `Successfully synced ${recordsCount} ${type.toLowerCase()}` },
     });
   } catch (error) {
     return apiError(`Sync failed: ${(error as Error).message}`, 500);
   }
 }
 
-/**
- * GET /api/sync?platform=SHOPIFY
- * Get recent sync logs for a platform
- */
 export async function GET(request: NextRequest) {
+  const auth = await requireAuth(request).catch(() => null);
+  if (!auth) return apiError("Unauthorized", 401);
+
   const { searchParams } = new URL(request.url);
   const platform = searchParams.get("platform")?.toUpperCase();
 
   try {
     const where = platform
-      ? { integration: { platform: platform as "SHOPIFY" | "SHOPEE" | "LAZADA" } }
-      : {};
+      ? { integration: { platform: platform as "SHOPIFY" | "SHOPEE" | "LAZADA", orgId: auth.orgId } }
+      : { integration: { orgId: auth.orgId } };
 
     const logs = await prisma.syncLog.findMany({
       where,
       orderBy: { startedAt: "desc" },
       take: 20,
-      include: {
-        integration: { select: { platform: true, name: true } },
-      },
+      include: { integration: { select: { platform: true, name: true } } },
     });
 
     return NextResponse.json({ success: true, data: logs });

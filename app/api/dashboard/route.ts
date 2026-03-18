@@ -1,35 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { apiError } from "@/lib/utils";
+import { requireAuth } from "@/lib/auth";
 import { aj } from "@/lib/arcjet";
 
 export async function GET(request: NextRequest) {
   const decision = await aj.protect(request);
-  if (decision.isDenied()) {
-    return apiError("Request blocked", 403);
-  }
+  if (decision.isDenied()) return apiError("Request blocked", 403);
+
+  const auth = await requireAuth(request).catch(() => null);
+  if (!auth) return apiError("Unauthorized", 401);
+
+  const { orgId } = auth;
 
   try {
-    // Aggregate stats
     const [
-      orderAgg,
-      productCount,
-      lowStockCount,
-      customerCount,
-      recentOrders,
-      platformStats,
-      integrations,
+      orderAgg, productCount, lowStockCount, customerCount,
+      recentOrders, platformStats, integrations,
     ] = await Promise.all([
-      prisma.order.aggregate({
-        _sum: { total: true },
-        _count: true,
-      }),
-      prisma.product.count({ where: { isActive: true } }),
+      prisma.order.aggregate({ where: { orgId }, _sum: { total: true }, _count: true }),
+      prisma.product.count({ where: { isActive: true, orgId } }),
       prisma.inventoryItem.count({
-        where: { quantity: { lte: prisma.inventoryItem.fields.reorderPoint } },
+        where: { warehouse: { orgId }, quantity: { lte: prisma.inventoryItem.fields.reorderPoint } },
       }).catch(() => 0),
-      prisma.customer.count(),
+      prisma.customer.count({ where: { orgId } }),
       prisma.order.findMany({
+        where: { orgId },
         orderBy: { createdAt: "desc" },
         take: 10,
         include: {
@@ -39,18 +35,17 @@ export async function GET(request: NextRequest) {
       }),
       prisma.order.groupBy({
         by: ["integrationId"],
+        where: { orgId },
         _sum: { total: true },
         _count: true,
       }),
       prisma.platformIntegration.findMany({
-        where: { isActive: true },
+        where: { isActive: true, orgId },
         select: { id: true, platform: true },
       }),
     ]);
 
-    // Build platform map
     const integrationMap = new Map(integrations.map((i) => [i.id, i.platform]));
-
     const platformSummary = ["SHOPIFY", "TIKTOK", "SHOPEE", "LAZADA", "AMAZON"].map((p) => {
       const stats = platformStats.find((s) => integrationMap.get(s.integrationId || "") === p);
       const isConnected = integrations.some((i) => i.platform === p);

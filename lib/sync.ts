@@ -20,17 +20,16 @@ type PlatformIntegrationRecord = {
 // PRODUCT SYNC
 // ============================================================
 
-export async function syncProducts(integration: PlatformIntegrationRecord) {
+export async function syncProducts(integration: PlatformIntegrationRecord, orgId: string) {
   const credentials = decryptCredentials(integration.credentials as string);
   const platform = integration.platform;
   let rawProducts: Record<string, unknown>[] = [];
 
-  // Fetch from platform
   switch (platform) {
     case "SHOPIFY": {
       const client = createShopifyClient(credentials as { shopDomain: string; accessToken: string });
       rawProducts = await client.getProducts({ limit: 250 });
-      return await upsertShopifyProducts(rawProducts, client, integration);
+      return await upsertShopifyProducts(rawProducts, client, integration, orgId);
     }
     case "SHOPEE": {
       const client = createShopeeClient({
@@ -45,13 +44,13 @@ export async function syncProducts(integration: PlatformIntegrationRecord) {
         const details = await client.getItemDetail(itemIds);
         rawProducts = details?.item_list || [];
       }
-      return await upsertShopeeProducts(rawProducts, client, integration);
+      return await upsertShopeeProducts(rawProducts, client, integration, orgId);
     }
     case "LAZADA": {
       const client = createLazadaClient(credentials as { appKey: string; appSecret: string; accessToken: string });
       const result = await client.getProducts({ limit: 50 });
       rawProducts = result?.products || [];
-      return await upsertLazadaProducts(rawProducts, client, integration);
+      return await upsertLazadaProducts(rawProducts, client, integration, orgId);
     }
     default:
       throw new Error(`Product sync not supported for ${platform}`);
@@ -61,7 +60,8 @@ export async function syncProducts(integration: PlatformIntegrationRecord) {
 async function upsertShopifyProducts(
   rawProducts: Record<string, unknown>[],
   client: ReturnType<typeof createShopifyClient>,
-  integration: PlatformIntegrationRecord
+  integration: PlatformIntegrationRecord,
+  orgId: string
 ) {
   let count = 0;
 
@@ -70,11 +70,10 @@ async function upsertShopifyProducts(
     const firstVariant = normalized.variants?.[0];
     const sku = firstVariant?.sku || `SHOP-${normalized.externalId}`;
 
-    // Upsert product
     const product = await prisma.product.upsert({
-      where: { sku },
+      where: { sku_orgId: { sku, orgId } },
       create: {
-        sku,
+        sku, orgId,
         name: normalized.name,
         description: normalized.description || "",
         category: normalized.category || "Uncategorized",
@@ -92,11 +91,10 @@ async function upsertShopifyProducts(
       },
     });
 
-    // Upsert variants
     for (const v of normalized.variants || []) {
       const variantSku = v.sku || `${sku}-${v.externalId}`;
       await prisma.productVariant.upsert({
-        where: { sku: variantSku },
+        where: { sku_productId: { sku: variantSku, productId: product.id } },
         create: {
           productId: product.id,
           sku: variantSku,
@@ -105,47 +103,30 @@ async function upsertShopifyProducts(
           costPrice: v.price || 0,
           isActive: true,
         },
-        update: {
-          name: v.name || "Default",
-          costPrice: v.price || 0,
-        },
+        update: { name: v.name || "Default", costPrice: v.price || 0 },
       });
     }
 
-    // Link to channel
     await prisma.channelProduct.upsert({
-      where: {
-        productId_integrationId: {
-          productId: product.id,
-          integrationId: integration.id,
-        },
-      },
+      where: { productId_integrationId: { productId: product.id, integrationId: integration.id } },
       create: {
-        productId: product.id,
-        integrationId: integration.id,
-        externalId: normalized.externalId,
-        sellingPrice: firstVariant?.price || 0,
-        status: "ACTIVE",
-        syncedAt: new Date(),
+        productId: product.id, integrationId: integration.id,
+        externalId: normalized.externalId, sellingPrice: firstVariant?.price || 0,
+        status: "ACTIVE", syncedAt: new Date(),
       },
-      update: {
-        externalId: normalized.externalId,
-        sellingPrice: firstVariant?.price || 0,
-        status: "ACTIVE",
-        syncedAt: new Date(),
-      },
+      update: { externalId: normalized.externalId, sellingPrice: firstVariant?.price || 0, status: "ACTIVE", syncedAt: new Date() },
     });
 
     count++;
   }
-
   return count;
 }
 
 async function upsertShopeeProducts(
   rawProducts: Record<string, unknown>[],
   client: ReturnType<typeof createShopeeClient>,
-  integration: PlatformIntegrationRecord
+  integration: PlatformIntegrationRecord,
+  orgId: string
 ) {
   let count = 0;
 
@@ -154,54 +135,33 @@ async function upsertShopeeProducts(
     const sku = `SPE-${normalized.externalId}`;
 
     const product = await prisma.product.upsert({
-      where: { sku },
+      where: { sku_orgId: { sku, orgId } },
       create: {
-        sku,
+        sku, orgId,
         name: normalized.name,
         description: normalized.description || "",
         category: normalized.category || "Uncategorized",
-        costPrice: 0,
-        images: normalized.images || [],
-        isActive: true,
+        costPrice: 0, images: normalized.images || [], isActive: true,
       },
-      update: {
-        name: normalized.name,
-        description: normalized.description || "",
-        images: normalized.images || [],
-      },
+      update: { name: normalized.name, description: normalized.description || "", images: normalized.images || [] },
     });
 
     await prisma.channelProduct.upsert({
-      where: {
-        productId_integrationId: {
-          productId: product.id,
-          integrationId: integration.id,
-        },
-      },
-      create: {
-        productId: product.id,
-        integrationId: integration.id,
-        externalId: normalized.externalId,
-        sellingPrice: 0,
-        status: "ACTIVE",
-        syncedAt: new Date(),
-      },
-      update: {
-        externalId: normalized.externalId,
-        syncedAt: new Date(),
-      },
+      where: { productId_integrationId: { productId: product.id, integrationId: integration.id } },
+      create: { productId: product.id, integrationId: integration.id, externalId: normalized.externalId, sellingPrice: 0, status: "ACTIVE", syncedAt: new Date() },
+      update: { externalId: normalized.externalId, syncedAt: new Date() },
     });
 
     count++;
   }
-
   return count;
 }
 
 async function upsertLazadaProducts(
   rawProducts: Record<string, unknown>[],
   client: ReturnType<typeof createLazadaClient>,
-  integration: PlatformIntegrationRecord
+  integration: PlatformIntegrationRecord,
+  orgId: string
 ) {
   let count = 0;
 
@@ -211,67 +171,34 @@ async function upsertLazadaProducts(
     const sku = firstVariant?.sku || `LZD-${normalized.externalId}`;
 
     const product = await prisma.product.upsert({
-      where: { sku },
+      where: { sku_orgId: { sku, orgId } },
       create: {
-        sku,
+        sku, orgId,
         name: normalized.name,
         description: normalized.description || "",
         category: normalized.category || "Uncategorized",
-        costPrice: firstVariant?.price || 0,
-        images: normalized.images || [],
-        isActive: true,
+        costPrice: firstVariant?.price || 0, images: normalized.images || [], isActive: true,
       },
-      update: {
-        name: normalized.name,
-        description: normalized.description || "",
-        images: normalized.images || [],
-      },
+      update: { name: normalized.name, description: normalized.description || "", images: normalized.images || [] },
     });
 
     for (const v of normalized.variants || []) {
       const variantSku = v.sku || `${sku}-${v.externalId}`;
       await prisma.productVariant.upsert({
-        where: { sku: variantSku },
-        create: {
-          productId: product.id,
-          sku: variantSku,
-          name: v.name || "Default",
-          attributes: {},
-          costPrice: v.price || 0,
-          isActive: true,
-        },
-        update: {
-          name: v.name || "Default",
-          costPrice: v.price || 0,
-        },
+        where: { sku_productId: { sku: variantSku, productId: product.id } },
+        create: { productId: product.id, sku: variantSku, name: v.name || "Default", attributes: {}, costPrice: v.price || 0, isActive: true },
+        update: { name: v.name || "Default", costPrice: v.price || 0 },
       });
     }
 
     await prisma.channelProduct.upsert({
-      where: {
-        productId_integrationId: {
-          productId: product.id,
-          integrationId: integration.id,
-        },
-      },
-      create: {
-        productId: product.id,
-        integrationId: integration.id,
-        externalId: normalized.externalId,
-        sellingPrice: firstVariant?.price || 0,
-        status: "ACTIVE",
-        syncedAt: new Date(),
-      },
-      update: {
-        externalId: normalized.externalId,
-        sellingPrice: firstVariant?.price || 0,
-        syncedAt: new Date(),
-      },
+      where: { productId_integrationId: { productId: product.id, integrationId: integration.id } },
+      create: { productId: product.id, integrationId: integration.id, externalId: normalized.externalId, sellingPrice: firstVariant?.price || 0, status: "ACTIVE", syncedAt: new Date() },
+      update: { externalId: normalized.externalId, sellingPrice: firstVariant?.price || 0, syncedAt: new Date() },
     });
 
     count++;
   }
-
   return count;
 }
 
@@ -279,7 +206,7 @@ async function upsertLazadaProducts(
 // ORDER SYNC
 // ============================================================
 
-export async function syncOrders(integration: PlatformIntegrationRecord) {
+export async function syncOrders(integration: PlatformIntegrationRecord, orgId: string) {
   const credentials = decryptCredentials(integration.credentials as string);
   const platform = integration.platform;
 
@@ -290,7 +217,7 @@ export async function syncOrders(integration: PlatformIntegrationRecord) {
         ? integration.lastSyncAt.toISOString()
         : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
       const rawOrders = await client.getOrders({ limit: 250, status: "any", created_at_min: sinceDate });
-      return await upsertOrders(rawOrders, client, integration, "shopify");
+      return await upsertOrders(rawOrders, client, integration, "shopify", orgId);
     }
     case "SHOPEE": {
       const client = createShopeeClient({
@@ -306,7 +233,7 @@ export async function syncOrders(integration: PlatformIntegrationRecord) {
         const details = await client.getOrderDetail(orderSns);
         rawOrders = details?.order_list || [];
       }
-      return await upsertOrders(rawOrders, client, integration, "shopee");
+      return await upsertOrders(rawOrders, client, integration, "shopee", orgId);
     }
     case "LAZADA": {
       const client = createLazadaClient(credentials as { appKey: string; appSecret: string; accessToken: string });
@@ -315,7 +242,7 @@ export async function syncOrders(integration: PlatformIntegrationRecord) {
         : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
       const result = await client.getOrders({ created_after: sinceDate, limit: 50 });
       const rawOrders = result?.orders || [];
-      return await upsertOrders(rawOrders, client, integration, "lazada");
+      return await upsertOrders(rawOrders, client, integration, "lazada", orgId);
     }
     default:
       throw new Error(`Order sync not supported for ${platform}`);
@@ -326,7 +253,8 @@ async function upsertOrders(
   rawOrders: Record<string, unknown>[],
   client: { normalizeOrder: (raw: Record<string, unknown>) => Record<string, unknown> },
   integration: PlatformIntegrationRecord,
-  platform: string
+  platform: string,
+  orgId: string
 ) {
   let count = 0;
   const platformEnum = integration.platform as "SHOPIFY" | "SHOPEE" | "LAZADA";
@@ -334,7 +262,6 @@ async function upsertOrders(
   for (const raw of rawOrders) {
     const normalized = client.normalizeOrder(raw);
 
-    // Upsert customer
     let customerId: string | null = null;
     const customerData = normalized.customer as { name?: string; email?: string; phone?: string } | null;
 
@@ -343,9 +270,10 @@ async function upsertOrders(
 
       const customer = await prisma.customer.upsert({
         where: {
-          platform_externalId: {
+          platform_externalId_orgId: {
             platform: platformEnum,
             externalId: customerExternalId,
+            orgId,
           },
         },
         create: {
@@ -356,6 +284,7 @@ async function upsertOrders(
           externalId: customerExternalId,
           totalOrders: 1,
           totalSpent: Number(normalized.total) || 0,
+          orgId,
         },
         update: {
           name: customerData.name || "Unknown",
@@ -366,13 +295,11 @@ async function upsertOrders(
       customerId = customer.id;
     }
 
-    // Check if order already exists
     const existingOrder = await prisma.order.findFirst({
-      where: { externalId: normalized.externalId as string },
+      where: { externalId: normalized.externalId as string, orgId },
     });
 
     if (existingOrder) {
-      // Update existing order status
       await prisma.order.update({
         where: { id: existingOrder.id },
         data: {
@@ -380,15 +307,16 @@ async function upsertOrders(
         },
       });
     } else {
-      // Create new order
       const shippingAddr = normalized.shippingAddress as Record<string, unknown> | null;
+      const orderNumber = (normalized.orderNumber as string) || generateOrderNumber();
 
       await prisma.order.create({
         data: {
-          orderNumber: (normalized.orderNumber as string) || generateOrderNumber(),
+          orderNumber,
           externalId: normalized.externalId as string,
           integrationId: integration.id,
           customerId,
+          orgId,
           status: (normalized.status as string) as "PENDING" | "CONFIRMED" | "PROCESSING" | "SHIPPED" | "DELIVERED" | "CANCELLED" | "RETURNED" | "REFUNDED",
           paymentStatus: "PAID",
           fulfillmentStatus: "UNFULFILLED",

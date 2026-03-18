@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiError } from "@/lib/utils";
-import { signToken } from "@/lib/auth";
-import { DEMO_USERS } from "@/lib/demo-users";
+import { signToken, comparePassword } from "@/lib/auth";
 import { ajAuth } from "@/lib/arcjet";
+import prisma from "@/lib/db";
 
 export async function POST(request: NextRequest) {
   try {
-    // Arcjet: strict rate limit + bot detection for login
     const decision = await ajAuth.protect(request);
     if (decision.isDenied()) {
       return apiError("Too many login attempts. Please try again later.", 429);
@@ -18,23 +17,35 @@ export async function POST(request: NextRequest) {
       return apiError("Email and password are required");
     }
 
-    const user = DEMO_USERS.find((u) => u.email === email && u.password === password);
+    const user = await prisma.user.findUnique({
+      where: { email },
+      include: { org: true },
+    });
 
-    if (!user) {
+    if (!user || !user.org.isActive) {
       return apiError("Invalid email or password", 401);
     }
 
-    const token = signToken({ userId: user.id, email: user.email, role: user.role });
+    const valid = await comparePassword(password, user.password);
+    if (!valid) {
+      return apiError("Invalid email or password", 401);
+    }
+
+    const token = signToken({
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+      orgId: user.orgId,
+    });
 
     const response = NextResponse.json({
       success: true,
       data: {
-        user: { id: user.id, email: user.email, name: user.name, role: user.role },
+        user: { id: user.id, email: user.email, name: user.name, role: user.role, orgId: user.orgId },
         token,
       },
     });
 
-    // httpOnly token for API auth
     response.cookies.set("erp_token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
@@ -42,9 +53,8 @@ export async function POST(request: NextRequest) {
       maxAge: 60 * 60 * 24 * 7,
     });
 
-    // readable user cookie for client-side display
     response.cookies.set("erp_user", JSON.stringify({
-      id: user.id, name: user.name, email: user.email, role: user.role,
+      id: user.id, name: user.name, email: user.email, role: user.role, orgId: user.orgId,
     }), {
       httpOnly: false,
       secure: process.env.NODE_ENV === "production",
