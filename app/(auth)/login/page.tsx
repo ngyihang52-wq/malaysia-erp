@@ -1,34 +1,6 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { DEMO_USERS } from "@/lib/demo-users";
-
-function getRoleColor(role: string): string {
-  switch (role) {
-    case "ADMIN": return "#dc2626";
-    case "MANAGER": return "#2563eb";
-    case "STAFF": return "#16a34a";
-    default: return "#6b7280";
-  }
-}
-
-function getRoleBadgeBg(role: string): string {
-  switch (role) {
-    case "ADMIN": return "#fee2e2";
-    case "MANAGER": return "#dbeafe";
-    case "STAFF": return "#dcfce7";
-    default: return "#f3f4f6";
-  }
-}
-
-function getRoleBadgeColor(role: string): string {
-  switch (role) {
-    case "ADMIN": return "#991b1b";
-    case "MANAGER": return "#1e40af";
-    case "STAFF": return "#166534";
-    default: return "#374151";
-  }
-}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -62,12 +34,6 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     await doLogin(email, password);
-  };
-
-  const handleQuickLogin = async (demoEmail: string, demoPassword: string) => {
-    setEmail(demoEmail);
-    setPassword(demoPassword);
-    await doLogin(demoEmail, demoPassword);
   };
 
   return (
@@ -129,48 +95,6 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* Quick Login Section */}
-          <div className="mt-6 pt-4 border-t" style={{ borderColor: "#e5e7eb" }}>
-            <p className="text-sm font-medium mb-3" style={{ color: "#374151" }}>
-              Quick Login — Select an Account
-            </p>
-            <div className="space-y-2">
-              {DEMO_USERS.map((demoUser) => (
-                <button
-                  key={demoUser.id}
-                  type="button"
-                  disabled={loading}
-                  onClick={() => handleQuickLogin(demoUser.email, demoUser.password)}
-                  className="w-full flex items-center gap-3 p-3 rounded-lg text-left transition-all"
-                  style={{
-                    background: "#f8fafc",
-                    border: "1px solid #e2e8f0",
-                    cursor: loading ? "not-allowed" : "pointer",
-                    opacity: loading ? 0.6 : 1,
-                  }}
-                  onMouseEnter={(e) => { if (!loading) e.currentTarget.style.borderColor = "#2563eb"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#e2e8f0"; }}
-                >
-                  <div
-                    className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0"
-                    style={{ background: getRoleColor(demoUser.role) }}
-                  >
-                    {demoUser.name.charAt(0)}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium truncate" style={{ color: "#0f172a" }}>{demoUser.name}</div>
-                    <div className="text-xs truncate" style={{ color: "#64748b" }}>{demoUser.email}</div>
-                  </div>
-                  <span
-                    className="text-xs font-semibold px-2 py-0.5 rounded-full flex-shrink-0"
-                    style={{ background: getRoleBadgeBg(demoUser.role), color: getRoleBadgeColor(demoUser.role) }}
-                  >
-                    {demoUser.role}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
 
         {/* Platforms */}
