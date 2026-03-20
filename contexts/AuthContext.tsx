@@ -55,7 +55,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(data.data);
         } else {
           setUser(null);
-          window.location.href = "http://localhost:5173";
+          window.location.href = process.env.NEXT_PUBLIC_NEXA_FRONTEND_URL || "https://nexa-commerce-sage.vercel.app";
         }
       })
       .catch(() => {
