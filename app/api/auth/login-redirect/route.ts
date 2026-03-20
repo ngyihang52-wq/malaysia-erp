@@ -3,8 +3,8 @@ import { signToken, comparePassword } from "@/lib/auth";
 import { ajAuth } from "@/lib/arcjet";
 import prisma from "@/lib/db";
 
-const NEXA_URL = "https://nexa-commerce-sage.vercel.app";
-const ERP_URL = "https://malaysia-erp-8cc2.vercel.app";
+const NEXA_URL = process.env.NEXA_FRONTEND_URL || "https://nexa-commerce-sage.vercel.app";
+const ERP_URL = process.env.NEXTAUTH_URL_PRODUCTION || "https://nexa-erp.com";
 
 async function handleLogin(email: string | null, password: string | null) {
   if (!email || !password) {
