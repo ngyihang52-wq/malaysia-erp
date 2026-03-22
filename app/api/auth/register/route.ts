@@ -1,8 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { apiError } from "@/lib/utils";
-import { signToken, hashPassword } from "@/lib/auth";
+import { hashPassword } from "@/lib/auth";
 import { ajAuth } from "@/lib/arcjet";
+import { sendVerificationEmail } from "@/lib/email";
 import prisma from "@/lib/db";
+import crypto from "crypto";
 
 function generateSlug(name: string): string {
   return name
@@ -36,48 +38,41 @@ export async function POST(request: NextRequest) {
 
     const hashed = await hashPassword(password);
 
-    const { org, user } = await prisma.$transaction(async (tx) => {
+    const { user } = await prisma.$transaction(async (tx) => {
       const org = await tx.organization.create({
         data: { name: orgName, slug: generateSlug(orgName) },
       });
       const user = await tx.user.create({
-        data: { name, email, password: hashed, role: "ADMIN", orgId: org.id },
+        data: {
+          name,
+          email,
+          password: hashed,
+          role: "ADMIN",
+          orgId: org.id,
+          emailVerified: false,
+        },
       });
       return { org, user };
     });
 
-    const token = signToken({
-      userId: user.id,
-      email: user.email,
-      role: user.role,
-      orgId: org.id,
-    });
-
-    const response = NextResponse.json({
-      success: true,
+    // Create verification token (24-hour expiry)
+    const verificationToken = crypto.randomBytes(32).toString("hex");
+    await prisma.emailVerificationToken.create({
       data: {
-        user: { id: user.id, email: user.email, name: user.name, role: user.role, orgId: org.id },
-        org: { id: org.id, name: org.name },
+        email: user.email,
+        token: verificationToken,
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
       },
     });
 
-    response.cookies.set("erp_token", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 7,
-    });
+    // Send verification email (fire-and-forget)
+    sendVerificationEmail(email, verificationToken).catch(console.error);
 
-    response.cookies.set("erp_user", JSON.stringify({
-      id: user.id, name: user.name, email: user.email, role: user.role, orgId: org.id,
-    }), {
-      httpOnly: false,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 7,
+    // Do NOT auto-login — require email verification first
+    return Response.json({
+      success: true,
+      data: { requiresVerification: true, email: user.email },
     });
-
-    return response;
   } catch (error) {
     return apiError(`Registration failed: ${(error as Error).message}`, 500);
   }

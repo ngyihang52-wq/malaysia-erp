@@ -32,7 +32,8 @@ export default function RegisterPage() {
         setError(data.error || "Registration failed");
         return;
       }
-      router.push("/dashboard");
+      // Redirect to verify-email page with email
+      router.push(`/verify-email?email=${encodeURIComponent(form.email)}`);
     } catch {
       setError("Network error. Please try again.");
     } finally {

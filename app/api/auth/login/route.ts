@@ -31,6 +31,14 @@ export async function POST(request: NextRequest) {
       return apiError("Invalid email or password", 401);
     }
 
+    // Block login if email is not verified
+    if (!user.emailVerified) {
+      return Response.json(
+        { success: false, error: "Please verify your email before signing in.", requiresVerification: true, email: user.email },
+        { status: 403 }
+      );
+    }
+
     const token = signToken({
       userId: user.id,
       email: user.email,

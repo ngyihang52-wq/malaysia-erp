@@ -21,6 +21,11 @@ export default function LoginPage() {
       });
       const data = await res.json();
       if (!data.success) {
+        // If email not verified, redirect to verify-email page
+        if (data.requiresVerification && data.email) {
+          router.push(`/verify-email?email=${encodeURIComponent(data.email)}`);
+          return;
+        }
         setError(data.error || "Login failed");
         return;
       }
