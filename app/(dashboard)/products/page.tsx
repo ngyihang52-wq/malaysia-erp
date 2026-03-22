@@ -1,20 +1,30 @@
 "use client";
 
-import { useState } from 'react';
-import { Search, Plus, ChevronDown } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Search, Plus, ChevronDown, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 
-const products = [
-  { sku: 'SKU-001', name: 'Batik Heritage Tote Bag', category: 'Bags', price: 189.0, stock: 234, channels: ['Shopee', 'Lazada'], status: 'Active' },
-  { sku: 'SKU-002', name: 'Pewter Desk Organizer', category: 'Home', price: 320.0, stock: 12, channels: ['Shopify'], status: 'Low Stock' },
-  { sku: 'SKU-003', name: 'Traditional Songket Scarf', category: 'Fashion', price: 450.0, stock: 89, channels: ['Shopee', 'TikTok'], status: 'Active' },
-  { sku: 'SKU-004', name: 'Ceramic Pour-Over Set', category: 'Kitchen', price: 260.0, stock: 0, channels: [], status: 'Out of Stock' },
-  { sku: 'SKU-005', name: 'Rattan Woven Basket', category: 'Home', price: 145.0, stock: 67, channels: ['Shopee', 'Lazada', 'Shopify'], status: 'Active' },
-  { sku: 'SKU-006', name: 'Handmade Nyonya Pouch', category: 'Fashion', price: 98.0, stock: 5, channels: ['TikTok'], status: 'Low Stock' },
-  { sku: 'SKU-007', name: 'Bamboo Cutting Board Set', category: 'Kitchen', price: 210.0, stock: 145, channels: ['Shopee', 'Amazon'], status: 'Active' },
-  { sku: 'SKU-008', name: 'Linen Throw Cushion Cover', category: 'Home', price: 89.0, stock: 312, channels: ['Shopify', 'Lazada'], status: 'Active' },
-  { sku: 'SKU-009', name: 'Kopitiam Enamel Mug', category: 'Kitchen', price: 55.0, stock: 28, channels: ['Shopee', 'TikTok'], status: 'Active' },
-  { sku: 'SKU-010', name: 'Shibori Dyed Silk Shawl', category: 'Fashion', price: 680.0, stock: 18, channels: ['Shopify'], status: 'Active' },
-];
+interface Product {
+  id: string;
+  sku: string;
+  name: string;
+  category: string;
+  brand: string;
+  costPrice: number;
+  variants: number;
+  channels: Record<string, number>;
+  stock: Record<string, number>;
+  totalStock: number;
+  isActive: boolean;
+  image: string;
+  images: string[];
+}
+
+interface Pagination {
+  page: number;
+  limit: number;
+  total: number;
+  pages: number;
+}
 
 const categories = ['All', 'Bags', 'Fashion', 'Home', 'Kitchen'];
 
@@ -32,17 +42,60 @@ const channelColors: Record<string, string> = {
   Shopify: '#ADD8E6',
 };
 
+function getStatus(product: Product): string {
+  if (!product.isActive || product.totalStock === 0) return 'Out of Stock';
+  if (product.totalStock < 20) return 'Low Stock';
+  return 'Active';
+}
+
 export default function Products() {
   const [category, setCategory] = useState('All');
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [products, setProducts] = useState<Product[]>([]);
+  const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 50, total: 0, pages: 0 });
+  const [loading, setLoading] = useState(true);
 
-  const filtered = products.filter((p) => {
-    const matchCat = category === 'All' || p.category === category;
-    const matchSearch =
-      p.name.toLowerCase().includes(search.toLowerCase()) ||
-      p.sku.toLowerCase().includes(search.toLowerCase());
-    return matchCat && matchSearch;
-  });
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const fetchProducts = useCallback(async (page: number, searchQuery: string, categoryFilter: string) => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      params.set('page', String(page));
+      params.set('limit', '50');
+      if (searchQuery) params.set('search', searchQuery);
+      if (categoryFilter && categoryFilter !== 'All') params.set('category', categoryFilter);
+
+      const res = await fetch(`/api/products?${params.toString()}`);
+      const json = await res.json();
+
+      if (json.success) {
+        setProducts(json.data.products);
+        setPagination(json.data.pagination);
+      }
+    } catch (err) {
+      console.error('Failed to fetch products:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Fetch on mount and when filters/page change
+  useEffect(() => {
+    fetchProducts(1, debouncedSearch, category);
+  }, [debouncedSearch, category, fetchProducts]);
+
+  const goToPage = (page: number) => {
+    fetchProducts(page, debouncedSearch, category);
+  };
+
+  const activeCount = products.filter((p) => getStatus(p) === 'Active').length;
+  const issueCount = products.filter((p) => getStatus(p) !== 'Active').length;
 
   return (
     <div className="p-6" style={{ fontFamily: "'IBM Plex Sans', sans-serif" }}>
@@ -66,9 +119,9 @@ export default function Products() {
       {/* Stats */}
       <div className="grid grid-cols-3 gap-3 mb-6">
         {[
-          { label: 'Total Products', value: products.length },
-          { label: 'Active', value: products.filter((p) => p.status === 'Active').length },
-          { label: 'Low / Out of Stock', value: products.filter((p) => p.status !== 'Active').length },
+          { label: 'Total Products', value: pagination.total },
+          { label: 'Active', value: activeCount },
+          { label: 'Low / Out of Stock', value: issueCount },
         ].map((s) => (
           <div key={s.label} className="bg-white p-4" style={{ border: '1px solid #C8DFF0' }}>
             <p className="text-[9px] tracking-[0.2em] uppercase" style={{ color: '#6D8196' }}>{s.label}</p>
@@ -76,7 +129,7 @@ export default function Products() {
               className="text-2xl mt-1"
               style={{ fontFamily: "'IBM Plex Mono', monospace", color: '#000080' }}
             >
-              {s.value}
+              {loading ? '--' : s.value}
             </p>
           </div>
         ))}
@@ -131,73 +184,149 @@ export default function Products() {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((product) => (
-              <tr
-                key={product.sku}
-                className="transition-colors cursor-pointer"
-                style={{ borderBottom: '1px solid #F5F9FF' }}
-              >
-                <td
-                  className="px-5 py-3.5 text-[11px]"
-                  style={{ fontFamily: "'IBM Plex Mono', monospace", color: '#6D8196' }}
-                >
-                  {product.sku}
-                </td>
-                <td className="px-5 py-3.5 text-xs" style={{ color: '#1A2540' }}>{product.name}</td>
-                <td className="px-5 py-3.5">
-                  <span className="text-[9px] tracking-wider uppercase" style={{ color: '#6D8196' }}>{product.category}</span>
-                </td>
-                <td
-                  className="px-5 py-3.5 text-[11px]"
-                  style={{ fontFamily: "'IBM Plex Mono', monospace", color: '#000080' }}
-                >
-                  RM {product.price.toFixed(2)}
-                </td>
-                <td
-                  className="px-5 py-3.5 text-[11px]"
-                  style={{
-                    fontFamily: "'IBM Plex Mono', monospace",
-                    color: product.stock === 0 ? '#8AAFC8' : product.stock < 20 ? '#6D8196' : '#000080',
-                  }}
-                >
-                  {product.stock}
-                </td>
-                <td className="px-5 py-3.5">
-                  <div className="flex items-center gap-1">
-                    {product.channels.map((ch) => (
-                      <span
-                        key={ch}
-                        className="px-1.5 py-0.5 text-white text-[8px] tracking-wider"
-                        style={{ background: channelColors[ch] || '#6D8196' }}
-                      >
-                        {ch.slice(0, 2).toUpperCase()}
-                      </span>
-                    ))}
-                    {product.channels.length === 0 && (
-                      <span className="text-[9px]" style={{ color: '#ADD8E6' }}>--</span>
-                    )}
+            {loading ? (
+              <tr>
+                <td colSpan={7} className="px-5 py-16 text-center">
+                  <div className="flex flex-col items-center gap-2">
+                    <Loader2 size={20} className="animate-spin" style={{ color: '#000080' }} />
+                    <span className="text-[11px] tracking-wide" style={{ color: '#6D8196' }}>Loading products...</span>
                   </div>
                 </td>
-                <td className="px-5 py-3.5">
-                  <span
-                    className="px-2 py-0.5 text-[9px] tracking-[0.1em] uppercase"
-                    style={{
-                      color: statusStyle[product.status].color,
-                      background: statusStyle[product.status].bg,
-                    }}
-                  >
-                    {product.status}
-                  </span>
+              </tr>
+            ) : products.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="px-5 py-16 text-center">
+                  <span className="text-[11px] tracking-wide" style={{ color: '#6D8196' }}>No products yet</span>
                 </td>
               </tr>
-            ))}
+            ) : (
+              products.map((product) => {
+                const status = getStatus(product);
+                const channelNames = Object.keys(product.channels);
+                const primaryPrice = channelNames.length > 0
+                  ? Math.min(...Object.values(product.channels))
+                  : product.costPrice;
+
+                return (
+                  <tr
+                    key={product.id}
+                    className="transition-colors cursor-pointer"
+                    style={{ borderBottom: '1px solid #F5F9FF' }}
+                  >
+                    <td
+                      className="px-5 py-3.5 text-[11px]"
+                      style={{ fontFamily: "'IBM Plex Mono', monospace", color: '#6D8196' }}
+                    >
+                      {product.sku}
+                    </td>
+                    <td className="px-5 py-3.5 text-xs" style={{ color: '#1A2540' }}>{product.name}</td>
+                    <td className="px-5 py-3.5">
+                      <span className="text-[9px] tracking-wider uppercase" style={{ color: '#6D8196' }}>{product.category}</span>
+                    </td>
+                    <td
+                      className="px-5 py-3.5 text-[11px]"
+                      style={{ fontFamily: "'IBM Plex Mono', monospace", color: '#000080' }}
+                    >
+                      RM {primaryPrice.toFixed(2)}
+                    </td>
+                    <td
+                      className="px-5 py-3.5 text-[11px]"
+                      style={{
+                        fontFamily: "'IBM Plex Mono', monospace",
+                        color: product.totalStock === 0 ? '#8AAFC8' : product.totalStock < 20 ? '#6D8196' : '#000080',
+                      }}
+                    >
+                      {product.totalStock}
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-1">
+                        {channelNames.map((ch) => (
+                          <span
+                            key={ch}
+                            className="px-1.5 py-0.5 text-white text-[8px] tracking-wider"
+                            style={{ background: channelColors[ch] || '#6D8196' }}
+                          >
+                            {ch.slice(0, 2).toUpperCase()}
+                          </span>
+                        ))}
+                        {channelNames.length === 0 && (
+                          <span className="text-[9px]" style={{ color: '#ADD8E6' }}>--</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <span
+                        className="px-2 py-0.5 text-[9px] tracking-[0.1em] uppercase"
+                        style={{
+                          color: statusStyle[status].color,
+                          background: statusStyle[status].bg,
+                        }}
+                      >
+                        {status}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
           </tbody>
         </table>
       </div>
 
-      <p className="text-[10px] mt-3 tracking-wide" style={{ color: '#6D8196' }}>
-        {filtered.length} products
-      </p>
+      {/* Footer: count + pagination */}
+      <div className="flex items-center justify-between mt-3">
+        <p className="text-[10px] tracking-wide" style={{ color: '#6D8196' }}>
+          {loading ? '...' : `${pagination.total} products`}
+        </p>
+
+        {pagination.pages > 1 && (
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => goToPage(pagination.page - 1)}
+              disabled={pagination.page <= 1}
+              className="p-1 transition-colors disabled:opacity-30"
+              style={{ color: '#000080' }}
+            >
+              <ChevronLeft size={14} />
+            </button>
+            {Array.from({ length: pagination.pages }, (_, i) => i + 1)
+              .filter((p) => {
+                // Show first, last, current, and neighbors
+                return p === 1 || p === pagination.pages || Math.abs(p - pagination.page) <= 1;
+              })
+              .reduce<(number | string)[]>((acc, p, idx, arr) => {
+                if (idx > 0 && p - (arr[idx - 1] as number) > 1) acc.push('...');
+                acc.push(p);
+                return acc;
+              }, [])
+              .map((p, idx) =>
+                typeof p === 'string' ? (
+                  <span key={`ellipsis-${idx}`} className="px-1 text-[10px]" style={{ color: '#6D8196' }}>...</span>
+                ) : (
+                  <button
+                    key={p}
+                    onClick={() => goToPage(p)}
+                    className="min-w-[24px] h-6 text-[10px] tracking-wider transition-colors"
+                    style={{
+                      background: p === pagination.page ? '#000080' : 'transparent',
+                      color: p === pagination.page ? '#FFFFFF' : '#6D8196',
+                    }}
+                  >
+                    {p}
+                  </button>
+                )
+              )}
+            <button
+              onClick={() => goToPage(pagination.page + 1)}
+              disabled={pagination.page >= pagination.pages}
+              className="p-1 transition-colors disabled:opacity-30"
+              style={{ color: '#000080' }}
+            >
+              <ChevronRight size={14} />
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

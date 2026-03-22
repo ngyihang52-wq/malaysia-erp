@@ -1,9 +1,8 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
-export async function GET() {
-  const response = NextResponse.redirect(
-    new URL(process.env.NEXA_FRONTEND_URL || "https://nexa-commerce-sage.vercel.app")
-  );
+export async function GET(request: NextRequest) {
+  const url = new URL("/login", request.url);
+  const response = NextResponse.redirect(url);
   response.cookies.delete("erp_token");
   response.cookies.delete("erp_user");
   return response;

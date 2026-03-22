@@ -1,48 +1,161 @@
 "use client";
 
-import { useState } from 'react';
-import { Play, Plus, Trash2, Download, Clock } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Play, Plus, Trash2, Download, Clock, Database, ChevronRight, X, Save } from 'lucide-react';
 
-const savedQueries = [
-  { name: 'Total orders by channel', query: 'SELECT channel, COUNT(*) as total\nFROM orders\nGROUP BY channel\nORDER BY total DESC;' },
-  { name: 'Low stock products', query: "SELECT sku, name, stock\nFROM products\nWHERE stock < reorder_point\nORDER BY stock ASC;" },
-  { name: 'Top customers by spend', query: 'SELECT customer_id, name, SUM(amount) as total_spend\nFROM orders\nGROUP BY customer_id, name\nORDER BY total_spend DESC\nLIMIT 10;' },
-  { name: 'Daily revenue (30 days)', query: "SELECT DATE(created_at) as date, SUM(amount) as revenue\nFROM orders\nWHERE created_at >= NOW() - INTERVAL '30 days'\nGROUP BY date\nORDER BY date;" },
-];
+interface SavedQuery {
+  name: string;
+  query: string;
+}
 
-const mockResults = {
-  columns: ['channel', 'total'],
-  rows: [
-    ['Shopee', '124'],
-    ['TikTok', '89'],
-    ['Lazada', '34'],
-    ['Shopify', '0'],
-    ['Amazon', '0'],
-  ],
-};
+interface QueryResults {
+  columns: string[];
+  rows: any[][];
+  count: number;
+}
+
+interface SchemaTable {
+  name: string;
+  columns: { name: string; type: string; nullable: boolean }[];
+}
+
+const STORAGE_KEY = 'sql-console-saved-queries';
+
+function loadSavedQueries(): SavedQuery[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) return JSON.parse(stored);
+  } catch {}
+  return [];
+}
+
+function persistSavedQueries(queries: SavedQuery[]) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(queries));
+  } catch {}
+}
 
 export default function SQLConsole() {
-  const [query, setQuery] = useState(savedQueries[0].query);
-  const [results, setResults] = useState<typeof mockResults | null>(null);
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<QueryResults | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [executionTime, setExecutionTime] = useState<string | null>(null);
-  const [activeQuery, setActiveQuery] = useState(0);
+  const [activeQuery, setActiveQuery] = useState<number | null>(null);
 
-  const handleRun = () => {
+  // Saved queries (localStorage)
+  const [savedQueries, setSavedQueries] = useState<SavedQuery[]>([]);
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [newQueryName, setNewQueryName] = useState('');
+
+  // Schema browser
+  const [schema, setSchema] = useState<SchemaTable[]>([]);
+  const [schemaLoading, setSchemaLoading] = useState(false);
+  const [schemaError, setSchemaError] = useState<string | null>(null);
+  const [expandedTable, setExpandedTable] = useState<string | null>(null);
+
+  // Load saved queries from localStorage on mount
+  useEffect(() => {
+    setSavedQueries(loadSavedQueries());
+  }, []);
+
+  // Fetch schema on mount
+  useEffect(() => {
+    const fetchSchema = async () => {
+      setSchemaLoading(true);
+      setSchemaError(null);
+      try {
+        const res = await fetch('/api/sql/schema');
+        const json = await res.json();
+        if (!res.ok || !json.success) {
+          throw new Error(json.error || json.message || 'Failed to load schema');
+        }
+        setSchema(json.data.tables);
+      } catch (err: any) {
+        setSchemaError(err.message || 'Failed to load schema');
+      } finally {
+        setSchemaLoading(false);
+      }
+    };
+    fetchSchema();
+  }, []);
+
+  const handleRun = useCallback(async () => {
+    if (!query.trim()) return;
     setLoading(true);
     setResults(null);
+    setError(null);
     const start = Date.now();
-    setTimeout(() => {
-      setResults(mockResults);
+    try {
+      const res = await fetch('/api/sql', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || json.message || 'Query execution failed');
+      }
+      setResults({
+        columns: json.data.columns,
+        rows: json.data.rows,
+        count: json.data.count,
+      });
       setExecutionTime(`${Date.now() - start}ms`);
+    } catch (err: any) {
+      setError(err.message || 'Query execution failed');
+      setExecutionTime(`${Date.now() - start}ms`);
+    } finally {
       setLoading(false);
-    }, 400);
-  };
+    }
+  }, [query]);
 
   const handleSelectQuery = (idx: number) => {
     setActiveQuery(idx);
     setQuery(savedQueries[idx].query);
     setResults(null);
+    setError(null);
+  };
+
+  const handleSaveQuery = () => {
+    if (!newQueryName.trim() || !query.trim()) return;
+    const updated = [...savedQueries, { name: newQueryName.trim(), query }];
+    setSavedQueries(updated);
+    persistSavedQueries(updated);
+    setActiveQuery(updated.length - 1);
+    setNewQueryName('');
+    setShowSaveDialog(false);
+  };
+
+  const handleDeleteQuery = (idx: number) => {
+    const updated = savedQueries.filter((_, i) => i !== idx);
+    setSavedQueries(updated);
+    persistSavedQueries(updated);
+    if (activeQuery === idx) {
+      setActiveQuery(null);
+    } else if (activeQuery !== null && activeQuery > idx) {
+      setActiveQuery(activeQuery - 1);
+    }
+  };
+
+  const handleExport = () => {
+    if (!results) return;
+    const header = results.columns.join(',');
+    const rows = results.rows.map((row) => row.map((cell) => {
+      const str = String(cell ?? '');
+      return str.includes(',') || str.includes('"') || str.includes('\n')
+        ? `"${str.replace(/"/g, '""')}"`
+        : str;
+    }).join(','));
+    const csv = [header, ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'query-results.csv';
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -64,32 +177,146 @@ export default function SQLConsole() {
 
       <div className="flex gap-4 flex-1 min-h-0">
         {/* Saved queries sidebar */}
-        <div className="w-48 flex-shrink-0">
-          <div className="bg-white h-full flex flex-col" style={{ border: '1px solid #C8DFF0' }}>
+        <div className="w-48 flex-shrink-0 flex flex-col gap-3">
+          <div className="bg-white flex flex-col" style={{ border: '1px solid #C8DFF0', maxHeight: '50%' }}>
             <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid #EEF5FF' }}>
               <p className="text-[9px] tracking-[0.15em] uppercase" style={{ color: '#6D8196' }}>Saved Queries</p>
-              <button style={{ color: '#ADD8E6' }}>
+              <button
+                style={{ color: '#ADD8E6' }}
+                onClick={() => {
+                  if (query.trim()) setShowSaveDialog(true);
+                }}
+                title="Save current query"
+              >
                 <Plus size={11} />
               </button>
             </div>
+
+            {/* Save dialog */}
+            {showSaveDialog && (
+              <div className="px-3 py-2 flex gap-1" style={{ borderBottom: '1px solid #EEF5FF' }}>
+                <input
+                  type="text"
+                  value={newQueryName}
+                  onChange={(e) => setNewQueryName(e.target.value)}
+                  placeholder="Query name..."
+                  className="flex-1 text-[10px] px-2 py-1 outline-none min-w-0"
+                  style={{ border: '1px solid #C8DFF0', color: '#000080' }}
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSaveQuery();
+                    if (e.key === 'Escape') setShowSaveDialog(false);
+                  }}
+                />
+                <button onClick={handleSaveQuery} style={{ color: '#000080' }}>
+                  <Save size={11} />
+                </button>
+                <button onClick={() => setShowSaveDialog(false)} style={{ color: '#6D8196' }}>
+                  <X size={11} />
+                </button>
+              </div>
+            )}
+
             <div className="flex-1 overflow-y-auto">
+              {savedQueries.length === 0 && (
+                <div className="px-4 py-4 text-center">
+                  <p className="text-[10px]" style={{ color: '#ADD8E6' }}>No saved queries</p>
+                </div>
+              )}
               {savedQueries.map((q, i) => (
-                <button
+                <div
                   key={i}
-                  onClick={() => handleSelectQuery(i)}
-                  className="w-full text-left px-4 py-3 transition-colors"
+                  className="flex items-center group"
                   style={{
                     background: activeQuery === i ? '#F0F8FF' : 'transparent',
                     borderBottom: '1px solid #F5F9FF',
                   }}
                 >
-                  <p
-                    className="text-[11px] leading-snug"
-                    style={{ color: activeQuery === i ? '#000080' : '#6D8196' }}
+                  <button
+                    onClick={() => handleSelectQuery(i)}
+                    className="flex-1 text-left px-4 py-3 transition-colors min-w-0"
                   >
-                    {q.name}
-                  </p>
-                </button>
+                    <p
+                      className="text-[11px] leading-snug truncate"
+                      style={{ color: activeQuery === i ? '#000080' : '#6D8196' }}
+                    >
+                      {q.name}
+                    </p>
+                  </button>
+                  <button
+                    onClick={() => handleDeleteQuery(i)}
+                    className="pr-3 opacity-0 group-hover:opacity-100 transition-opacity"
+                    style={{ color: '#6D8196' }}
+                  >
+                    <Trash2 size={10} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Schema browser */}
+          <div className="bg-white flex-1 flex flex-col min-h-0" style={{ border: '1px solid #C8DFF0' }}>
+            <div className="flex items-center gap-2 px-4 py-3" style={{ borderBottom: '1px solid #EEF5FF' }}>
+              <Database size={10} style={{ color: '#6D8196' }} />
+              <p className="text-[9px] tracking-[0.15em] uppercase" style={{ color: '#6D8196' }}>Schema</p>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              {schemaLoading && (
+                <div className="p-4 text-center">
+                  <div
+                    className="w-3 h-3 border-2 rounded-full animate-spin mx-auto mb-1"
+                    style={{ borderColor: '#ADD8E6', borderTopColor: 'transparent' }}
+                  />
+                  <p className="text-[9px]" style={{ color: '#6D8196' }}>Loading...</p>
+                </div>
+              )}
+              {schemaError && (
+                <div className="p-3">
+                  <p className="text-[9px]" style={{ color: '#CC4444' }}>{schemaError}</p>
+                </div>
+              )}
+              {!schemaLoading && !schemaError && schema.map((table) => (
+                <div key={table.name}>
+                  <button
+                    onClick={() => setExpandedTable(expandedTable === table.name ? null : table.name)}
+                    className="w-full text-left px-4 py-2 flex items-center gap-1.5 transition-colors hover:bg-[#F0F8FF]"
+                    style={{ borderBottom: '1px solid #F5F9FF' }}
+                  >
+                    <ChevronRight
+                      size={9}
+                      style={{
+                        color: '#6D8196',
+                        transform: expandedTable === table.name ? 'rotate(90deg)' : undefined,
+                        transition: 'transform 0.15s',
+                      }}
+                    />
+                    <span className="text-[10px]" style={{ color: '#000080', fontFamily: "'IBM Plex Mono', monospace" }}>
+                      {table.name}
+                    </span>
+                  </button>
+                  {expandedTable === table.name && (
+                    <div style={{ background: '#FAFCFF' }}>
+                      {table.columns.map((col) => (
+                        <div
+                          key={col.name}
+                          className="flex items-center justify-between px-4 pl-8 py-1.5"
+                          style={{ borderBottom: '1px solid #F5F9FF' }}
+                        >
+                          <span
+                            className="text-[9px]"
+                            style={{ color: '#6D8196', fontFamily: "'IBM Plex Mono', monospace" }}
+                          >
+                            {col.name}
+                          </span>
+                          <span className="text-[8px] tracking-wide uppercase" style={{ color: '#ADD8E6' }}>
+                            {col.type}{col.nullable ? '?' : ''}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               ))}
             </div>
           </div>
@@ -115,7 +342,7 @@ export default function SQLConsole() {
                 </button>
                 <button
                   onClick={handleRun}
-                  disabled={loading}
+                  disabled={loading || !query.trim()}
                   className="flex items-center gap-1.5 text-white text-[10px] tracking-[0.1em] uppercase px-3 py-1.5 transition-opacity hover:opacity-90 disabled:opacity-50"
                   style={{ background: '#6D8196' }}
                 >
@@ -164,7 +391,11 @@ export default function SQLConsole() {
                   </div>
                 )}
                 {results && (
-                  <button className="flex items-center gap-1 text-[10px] transition-colors" style={{ color: '#6D8196' }}>
+                  <button
+                    onClick={handleExport}
+                    className="flex items-center gap-1 text-[10px] transition-colors"
+                    style={{ color: '#6D8196' }}
+                  >
                     <Download size={10} />
                     <span className="tracking-[0.1em] uppercase">Export</span>
                   </button>
@@ -182,12 +413,22 @@ export default function SQLConsole() {
                   <p className="text-[10px] tracking-wide" style={{ color: '#6D8196' }}>Executing query...</p>
                 </div>
               )}
-              {!loading && !results && (
+              {!loading && error && (
+                <div className="p-5">
+                  <div className="px-4 py-3" style={{ background: '#FFF5F5', border: '1px solid #FFDDDD' }}>
+                    <p className="text-[9px] tracking-[0.15em] uppercase mb-1" style={{ color: '#CC4444' }}>Error</p>
+                    <p className="text-[11px] leading-relaxed" style={{ color: '#993333', fontFamily: "'IBM Plex Mono', monospace" }}>
+                      {error}
+                    </p>
+                  </div>
+                </div>
+              )}
+              {!loading && !error && !results && (
                 <div className="p-8 text-center text-xs tracking-wide" style={{ color: '#ADD8E6' }}>
                   Run a query to see results
                 </div>
               )}
-              {!loading && results && (
+              {!loading && !error && results && (
                 <table className="w-full">
                   <thead>
                     <tr style={{ borderBottom: '1px solid #EEF5FF' }}>
@@ -209,9 +450,9 @@ export default function SQLConsole() {
                           <td
                             key={j}
                             className="px-5 py-2.5 text-[11px]"
-                            style={{ fontFamily: "'IBM Plex Mono', monospace", color: '#000080' }}
+                            style={{ fontFamily: "'IBM Plex Mono', monospace", color: cell === null ? '#ADD8E6' : '#000080' }}
                           >
-                            {cell}
+                            {cell === null ? 'NULL' : String(cell)}
                           </td>
                         ))}
                       </tr>

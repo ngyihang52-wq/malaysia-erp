@@ -1,64 +1,45 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { CheckCircle2, XCircle, ExternalLink, RefreshCw, Settings } from 'lucide-react';
+import { CheckCircle2, XCircle, ExternalLink, RefreshCw, Settings, Loader2 } from 'lucide-react';
 
-const channels = [
+/* ── Static platform definitions (styling / copy only) ── */
+const PLATFORMS = [
   {
     id: 'shopify',
     name: 'Shopify',
     description: 'Direct-to-consumer storefront',
-    status: 'connected',
-    lastSync: '20 Mar 2026, 09:38',
-    orders: 0,
-    revenue: 6000,
+    helpUrl: 'https://help.shopify.com/en/manual',
     apiVersion: 'v2024-01',
-    store: 'malaysia-erp.myshopify.com',
-  },
-  {
-    id: 'shopee',
-    name: 'Shopee',
-    description: 'Southeast Asia marketplace',
-    status: 'disconnected',
-    lastSync: 'Never',
-    orders: 124,
-    revenue: 22380,
-    apiVersion: '---',
-    store: '---',
   },
   {
     id: 'tiktok',
     name: 'TikTok Shop',
     description: 'Social commerce platform',
-    status: 'disconnected',
-    lastSync: 'Never',
-    orders: 89,
-    revenue: 12440,
-    apiVersion: '---',
-    store: '---',
+    helpUrl: 'https://seller.tiktokglobalshop.com',
+    apiVersion: 'v202309',
+  },
+  {
+    id: 'shopee',
+    name: 'Shopee',
+    description: 'Southeast Asia marketplace',
+    helpUrl: 'https://seller.shopee.com.my',
+    apiVersion: 'v2',
   },
   {
     id: 'lazada',
     name: 'Lazada',
     description: 'SEA e-commerce marketplace',
-    status: 'disconnected',
-    lastSync: 'Never',
-    orders: 34,
-    revenue: 8100,
-    apiVersion: '---',
-    store: '---',
+    helpUrl: 'https://sellercenter.lazada.com.my',
+    apiVersion: 'v2',
   },
   {
     id: 'amazon',
     name: 'Amazon',
     description: 'Global marketplace',
-    status: 'disconnected',
-    lastSync: 'Never',
-    orders: 0,
-    revenue: 0,
-    apiVersion: '---',
-    store: '---',
+    helpUrl: 'https://sellercentral.amazon.com',
+    apiVersion: 'SP-API 2023',
   },
 ];
 
@@ -70,8 +51,109 @@ const channelAccent: Record<string, string> = {
   amazon: '#ADD8E6',
 };
 
+/* ── Types ── */
+interface Credential {
+  id: string;
+  platform: string;
+  name: string;
+  isActive: boolean;
+  lastSyncAt: string | null;
+  createdAt: string;
+  lastSync: object | null;
+}
+
+interface MergedChannel {
+  id: string;
+  name: string;
+  description: string;
+  status: 'connected' | 'disconnected';
+  lastSync: string;
+  orders: number;
+  revenue: number;
+  apiVersion: string;
+  store: string;
+}
+
+/* ── Helpers ── */
+function formatSyncDate(iso: string | null): string {
+  if (!iso) return 'Never';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return 'Never';
+  return d.toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  }) + ', ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
+function mergeChannels(credentials: Credential[]): MergedChannel[] {
+  const credByPlatform = new Map<string, Credential>();
+  for (const c of credentials) {
+    if (c.isActive) credByPlatform.set(c.platform.toLowerCase(), c);
+  }
+
+  return PLATFORMS.map((p) => {
+    const cred = credByPlatform.get(p.id);
+    if (cred) {
+      return {
+        id: p.id,
+        name: p.name,
+        description: p.description,
+        status: 'connected' as const,
+        lastSync: formatSyncDate(cred.lastSyncAt),
+        orders: 0,
+        revenue: 0,
+        apiVersion: p.apiVersion,
+        store: cred.name,
+      };
+    }
+    return {
+      id: p.id,
+      name: p.name,
+      description: p.description,
+      status: 'disconnected' as const,
+      lastSync: 'Never',
+      orders: 0,
+      revenue: 0,
+      apiVersion: '---',
+      store: '---',
+    };
+  });
+}
+
+/* ── Component ── */
 export default function Integrations() {
   const [syncing, setSyncing] = useState<string | null>(null);
+  const [channels, setChannels] = useState<MergedChannel[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function fetchCredentials() {
+      try {
+        const res = await fetch('/api/integrations/credentials', { credentials: 'include' });
+        if (!res.ok) throw new Error(`Failed to fetch integrations (${res.status})`);
+        const json = await res.json();
+        if (!json.success) throw new Error('API returned unsuccessful response');
+        if (!cancelled) {
+          setChannels(mergeChannels(json.data ?? []));
+        }
+      } catch (err: unknown) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Failed to load integrations');
+          // Fall back to all-disconnected so the page is still usable
+          setChannels(mergeChannels([]));
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    fetchCredentials();
+    return () => { cancelled = true; };
+  }, []);
 
   const handleSync = (id: string) => {
     setSyncing(id);
@@ -79,6 +161,20 @@ export default function Integrations() {
   };
 
   const connected = channels.filter((c) => c.status === 'connected').length;
+
+  /* ── Loading state ── */
+  if (loading) {
+    return (
+      <div className="p-6 flex items-center justify-center min-h-[60vh]" style={{ fontFamily: "'IBM Plex Sans', sans-serif" }}>
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 size={24} className="animate-spin" style={{ color: '#ADD8E6' }} />
+          <p className="text-xs tracking-[0.15em] uppercase" style={{ color: '#6D8196' }}>
+            Loading integrations...
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6" style={{ fontFamily: "'IBM Plex Sans', sans-serif" }}>
@@ -97,6 +193,16 @@ export default function Integrations() {
           /{channels.length} channels connected
         </p>
       </div>
+
+      {/* Error banner */}
+      {error && (
+        <div
+          className="mb-4 px-4 py-3 text-xs"
+          style={{ background: '#FFF5F5', border: '1px solid #FED7D7', color: '#9B2C2C' }}
+        >
+          {error}
+        </div>
+      )}
 
       {/* Stats bar */}
       <div className="grid grid-cols-3 gap-3 mb-6">

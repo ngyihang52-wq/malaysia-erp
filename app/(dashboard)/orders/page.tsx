@@ -1,22 +1,31 @@
 "use client";
 
-import { useState } from 'react';
-import { Search, Filter, Download, ChevronDown } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Search, Filter, Download, ChevronDown, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 
-const allOrders = [
-  { id: 'ORD-2847', customer: 'Ahmad bin Rashid', channel: 'Shopee', items: 3, amount: 284.0, status: 'Shipped', date: '20 Mar 2026' },
-  { id: 'ORD-2846', customer: 'Lim Wei Xin', channel: 'TikTok', items: 1, amount: 156.5, status: 'Processing', date: '20 Mar 2026' },
-  { id: 'ORD-2845', customer: 'Nurul Aisyah', channel: 'Shopee', items: 5, amount: 892.0, status: 'Pending', date: '19 Mar 2026' },
-  { id: 'ORD-2844', customer: 'Raj Kumar', channel: 'Lazada', items: 2, amount: 445.0, status: 'Delivered', date: '19 Mar 2026' },
-  { id: 'ORD-2843', customer: 'Siti Aminah', channel: 'Shopify', items: 4, amount: 1200.0, status: 'Shipped', date: '18 Mar 2026' },
-  { id: 'ORD-2842', customer: 'Chen Ming', channel: 'TikTok', items: 2, amount: 320.0, status: 'Delivered', date: '18 Mar 2026' },
-  { id: 'ORD-2841', customer: 'Priya Devi', channel: 'Shopee', items: 1, amount: 78.5, status: 'Delivered', date: '17 Mar 2026' },
-  { id: 'ORD-2840', customer: 'Azman Yusof', channel: 'Lazada', items: 3, amount: 560.0, status: 'Shipped', date: '17 Mar 2026' },
-  { id: 'ORD-2839', customer: 'Mei Lin', channel: 'Shopify', items: 2, amount: 890.0, status: 'Pending', date: '16 Mar 2026' },
-  { id: 'ORD-2838', customer: 'Hafiz Kamal', channel: 'Shopee', items: 1, amount: 145.0, status: 'Processing', date: '16 Mar 2026' },
-  { id: 'ORD-2837', customer: 'Tan Bee Lian', channel: 'TikTok', items: 4, amount: 674.0, status: 'Delivered', date: '15 Mar 2026' },
-  { id: 'ORD-2836', customer: 'Rosnah Binti Ali', channel: 'Shopee', items: 2, amount: 234.0, status: 'Shipped', date: '15 Mar 2026' },
-];
+interface Order {
+  id: string;
+  orderNumber: string;
+  platform: string;
+  customer: string;
+  email: string;
+  items: number;
+  subtotal: number;
+  shippingFee: number;
+  discount: number;
+  total: number;
+  status: string;
+  payment: string;
+  tracking: string;
+  date: string;
+}
+
+interface Pagination {
+  page: number;
+  limit: number;
+  total: number;
+  pages: number;
+}
 
 const statuses = ['All', 'Pending', 'Processing', 'Shipped', 'Delivered'];
 
@@ -34,17 +43,97 @@ const statusBg: Record<string, string> = {
   Delivered: '#EEF5F1',
 };
 
+function formatDate(dateStr: string): string {
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return dateStr;
+  const day = d.getDate();
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${day} ${months[d.getMonth()]} ${d.getFullYear()}`;
+}
+
 export default function Orders() {
   const [activeStatus, setActiveStatus] = useState('All');
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 50, total: 0, pages: 0 });
+  const [loading, setLoading] = useState(true);
+  const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
 
-  const filtered = allOrders.filter((o) => {
-    const matchStatus = activeStatus === 'All' || o.status === activeStatus;
-    const matchSearch =
-      o.customer.toLowerCase().includes(search.toLowerCase()) ||
-      o.id.toLowerCase().includes(search.toLowerCase());
-    return matchStatus && matchSearch;
-  });
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const fetchOrders = useCallback(async (page: number, status: string, searchTerm: string) => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      params.set('page', String(page));
+      params.set('limit', '50');
+      if (status !== 'All') params.set('status', status);
+      if (searchTerm) params.set('search', searchTerm);
+
+      const res = await fetch(`/api/orders?${params.toString()}`, { credentials: 'include' });
+      const json = await res.json();
+
+      if (json.success) {
+        setOrders(json.data.orders);
+        setPagination(json.data.pagination);
+      }
+    } catch (err) {
+      console.error('Failed to fetch orders:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Fetch status counts (unfiltered) for the summary cards
+  const fetchStatusCounts = useCallback(async () => {
+    try {
+      const res = await fetch('/api/orders?limit=0', { credentials: 'include' });
+      const json = await res.json();
+      if (json.success) {
+        const allOrders: Order[] = json.data.orders;
+        const total = json.data.pagination.total;
+        const counts: Record<string, number> = { Total: total };
+        for (const s of ['Pending', 'Processing', 'Shipped']) {
+          counts[s] = allOrders.filter((o) => o.status === s).length;
+        }
+        // If limit=0 doesn't return all orders, use what we have
+        if (allOrders.length < total) {
+          // Fetch with a high limit to get accurate counts
+          const res2 = await fetch('/api/orders?limit=9999', { credentials: 'include' });
+          const json2 = await res2.json();
+          if (json2.success) {
+            const all2: Order[] = json2.data.orders;
+            counts.Total = json2.data.pagination.total;
+            for (const s of ['Pending', 'Processing', 'Shipped']) {
+              counts[s] = all2.filter((o) => o.status === s).length;
+            }
+          }
+        }
+        setStatusCounts(counts);
+      }
+    } catch {
+      // Silently fail for counts
+    }
+  }, []);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    fetchOrders(1, activeStatus, debouncedSearch);
+  }, [activeStatus, debouncedSearch, fetchOrders]);
+
+  // Fetch counts on mount
+  useEffect(() => {
+    fetchStatusCounts();
+  }, [fetchStatusCounts]);
+
+  const handlePageChange = (newPage: number) => {
+    fetchOrders(newPage, activeStatus, debouncedSearch);
+  };
 
   return (
     <div className="p-6" style={{ fontFamily: "'IBM Plex Sans', sans-serif" }}>
@@ -71,10 +160,10 @@ export default function Orders() {
       {/* Summary stats */}
       <div className="grid grid-cols-4 gap-3 mb-6">
         {[
-          { label: 'Total', count: allOrders.length, color: '#000080' },
-          { label: 'Pending', count: allOrders.filter((o) => o.status === 'Pending').length, color: '#8AAFC8' },
-          { label: 'Processing', count: allOrders.filter((o) => o.status === 'Processing').length, color: '#6D8196' },
-          { label: 'Shipped', count: allOrders.filter((o) => o.status === 'Shipped').length, color: '#4A7B5F' },
+          { label: 'Total', count: statusCounts.Total ?? 0, color: '#000080' },
+          { label: 'Pending', count: statusCounts.Pending ?? 0, color: '#8AAFC8' },
+          { label: 'Processing', count: statusCounts.Processing ?? 0, color: '#6D8196' },
+          { label: 'Shipped', count: statusCounts.Shipped ?? 0, color: '#4A7B5F' },
         ].map((s) => (
           <div key={s.label} className="bg-white p-4" style={{ border: '1px solid #C8DFF0' }}>
             <p className="text-[9px] tracking-[0.2em] uppercase" style={{ color: '#6D8196' }}>{s.label}</p>
@@ -137,66 +226,131 @@ export default function Orders() {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((order) => (
-              <tr
-                key={order.id}
-                className="transition-colors cursor-pointer"
-                style={{ borderBottom: '1px solid #F5F9FF' }}
-              >
-                <td
-                  className="px-5 py-3.5 text-[11px]"
-                  style={{ fontFamily: "'IBM Plex Mono', monospace", color: '#6D8196' }}
-                >
-                  #{order.id}
-                </td>
-                <td className="px-5 py-3.5 text-xs" style={{ color: '#1A2540' }}>{order.customer}</td>
-                <td className="px-5 py-3.5">
-                  <span className="text-[9px] tracking-wider uppercase" style={{ color: '#6D8196' }}>{order.channel}</span>
-                </td>
-                <td
-                  className="px-5 py-3.5 text-[11px]"
-                  style={{ fontFamily: "'IBM Plex Mono', monospace", color: '#4A6080' }}
-                >
-                  {order.items}
-                </td>
-                <td
-                  className="px-5 py-3.5 text-[11px]"
-                  style={{ fontFamily: "'IBM Plex Mono', monospace", color: '#000080' }}
-                >
-                  RM {order.amount.toFixed(2)}
-                </td>
-                <td className="px-5 py-3.5">
-                  <span
-                    className="px-2 py-0.5 text-[9px] tracking-[0.1em] uppercase"
-                    style={{
-                      color: statusColor[order.status],
-                      background: statusBg[order.status],
-                    }}
-                  >
-                    {order.status}
-                  </span>
-                </td>
-                <td
-                  className="px-5 py-3.5 text-[10px]"
-                  style={{ fontFamily: "'IBM Plex Mono', monospace", color: '#6D8196' }}
-                >
-                  {order.date}
+            {loading ? (
+              <tr>
+                <td colSpan={7}>
+                  <div className="py-12 flex items-center justify-center gap-2 text-xs tracking-wide" style={{ color: '#6D8196' }}>
+                    <Loader2 size={14} className="animate-spin" />
+                    Loading orders...
+                  </div>
                 </td>
               </tr>
-            ))}
+            ) : (
+              orders.map((order) => (
+                <tr
+                  key={order.id}
+                  className="transition-colors cursor-pointer"
+                  style={{ borderBottom: '1px solid #F5F9FF' }}
+                >
+                  <td
+                    className="px-5 py-3.5 text-[11px]"
+                    style={{ fontFamily: "'IBM Plex Mono', monospace", color: '#6D8196' }}
+                  >
+                    #{order.orderNumber}
+                  </td>
+                  <td className="px-5 py-3.5 text-xs" style={{ color: '#1A2540' }}>{order.customer}</td>
+                  <td className="px-5 py-3.5">
+                    <span className="text-[9px] tracking-wider uppercase" style={{ color: '#6D8196' }}>{order.platform}</span>
+                  </td>
+                  <td
+                    className="px-5 py-3.5 text-[11px]"
+                    style={{ fontFamily: "'IBM Plex Mono', monospace", color: '#4A6080' }}
+                  >
+                    {order.items}
+                  </td>
+                  <td
+                    className="px-5 py-3.5 text-[11px]"
+                    style={{ fontFamily: "'IBM Plex Mono', monospace", color: '#000080' }}
+                  >
+                    RM {order.total.toFixed(2)}
+                  </td>
+                  <td className="px-5 py-3.5">
+                    <span
+                      className="px-2 py-0.5 text-[9px] tracking-[0.1em] uppercase"
+                      style={{
+                        color: statusColor[order.status],
+                        background: statusBg[order.status],
+                      }}
+                    >
+                      {order.status}
+                    </span>
+                  </td>
+                  <td
+                    className="px-5 py-3.5 text-[10px]"
+                    style={{ fontFamily: "'IBM Plex Mono', monospace", color: '#6D8196' }}
+                  >
+                    {formatDate(order.date)}
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
 
-        {filtered.length === 0 && (
+        {!loading && orders.length === 0 && (
           <div className="py-12 text-center text-xs tracking-wide" style={{ color: '#6D8196' }}>
-            No orders found
+            No orders yet
           </div>
         )}
       </div>
 
-      <p className="text-[10px] mt-3 tracking-wide" style={{ color: '#6D8196' }}>
-        Showing {filtered.length} of {allOrders.length} orders
-      </p>
+      {/* Footer: count + pagination */}
+      <div className="flex items-center justify-between mt-3">
+        <p className="text-[10px] tracking-wide" style={{ color: '#6D8196' }}>
+          Showing {orders.length} of {pagination.total} orders
+        </p>
+
+        {pagination.pages > 1 && (
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => handlePageChange(pagination.page - 1)}
+              disabled={pagination.page <= 1}
+              className="flex items-center justify-center w-7 h-7 transition-colors disabled:opacity-30"
+              style={{ border: '1px solid #C8DFF0', color: '#6D8196', background: '#FFFFFF' }}
+            >
+              <ChevronLeft size={12} />
+            </button>
+
+            {Array.from({ length: pagination.pages }, (_, i) => i + 1)
+              .filter((p) => {
+                // Show first, last, and pages near the current page
+                return p === 1 || p === pagination.pages || Math.abs(p - pagination.page) <= 1;
+              })
+              .reduce<(number | 'ellipsis')[]>((acc, p, idx, arr) => {
+                if (idx > 0 && p - (arr[idx - 1] as number) > 1) acc.push('ellipsis');
+                acc.push(p);
+                return acc;
+              }, [])
+              .map((p, idx) =>
+                p === 'ellipsis' ? (
+                  <span key={`e-${idx}`} className="text-[10px] px-1" style={{ color: '#6D8196' }}>...</span>
+                ) : (
+                  <button
+                    key={p}
+                    onClick={() => handlePageChange(p as number)}
+                    className="flex items-center justify-center w-7 h-7 text-[10px] transition-colors"
+                    style={{
+                      border: '1px solid #C8DFF0',
+                      background: pagination.page === p ? '#000080' : '#FFFFFF',
+                      color: pagination.page === p ? '#FFFFFF' : '#6D8196',
+                    }}
+                  >
+                    {p}
+                  </button>
+                )
+              )}
+
+            <button
+              onClick={() => handlePageChange(pagination.page + 1)}
+              disabled={pagination.page >= pagination.pages}
+              className="flex items-center justify-center w-7 h-7 transition-colors disabled:opacity-30"
+              style={{ border: '1px solid #C8DFF0', color: '#6D8196', background: '#FFFFFF' }}
+            >
+              <ChevronRight size={12} />
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
