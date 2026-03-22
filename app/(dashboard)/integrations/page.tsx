@@ -155,9 +155,17 @@ export default function Integrations() {
     return () => { cancelled = true; };
   }, []);
 
-  const handleSync = (id: string) => {
+  const handleSync = async (id: string) => {
     setSyncing(id);
-    setTimeout(() => setSyncing(null), 1500);
+    const platform = id.toUpperCase();
+    try {
+      await fetch(`/api/sync?platform=${platform}&type=PRODUCTS`, { method: 'POST', credentials: 'include' });
+      await fetch(`/api/sync?platform=${platform}&type=ORDERS`, { method: 'POST', credentials: 'include' });
+    } catch {
+      // silent
+    } finally {
+      setSyncing(null);
+    }
   };
 
   const connected = channels.filter((c) => c.status === 'connected').length;
