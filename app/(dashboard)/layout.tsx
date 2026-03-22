@@ -1,6 +1,13 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import Sidebar from "@/components/layout/Sidebar";
+import { IBM_Plex_Sans } from "next/font/google";
+import DashboardShell from "@/components/layout/DashboardShell";
+
+const ibmPlexSans = IBM_Plex_Sans({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
+  variable: "--font-ibm-plex-sans",
+});
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const cookieStore = await cookies();
@@ -11,11 +18,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
   }
 
   return (
-    <div className="flex min-h-screen" style={{ background: "#f8fafc" }}>
-      <Sidebar />
-      <main className="flex-1" style={{ marginLeft: "260px" }}>
-        {children}
-      </main>
+    <div className={ibmPlexSans.variable}>
+      <DashboardShell>{children}</DashboardShell>
     </div>
   );
 }

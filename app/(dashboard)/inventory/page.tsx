@@ -1,358 +1,182 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
-import TopBar from "@/components/layout/TopBar";
 
-type WarehouseName = "Main Warehouse (KL)" | "Backup Store (PJ)" | "Fulfillment Center (SG)";
-const WAREHOUSES: WarehouseName[] = ["Main Warehouse (KL)", "Backup Store (PJ)", "Fulfillment Center (SG)"];
+import { AlertTriangle, ArrowDown, RefreshCw } from 'lucide-react';
 
-type InventoryType = {
-  id: string; sku: string; name: string; category: string;
-  warehouses: Record<string, number>;
-  reorderPoint: number; reorderQty: number; reserved: number; lastMovement: string;
-};
+const inventoryItems = [
+  { sku: 'SKU-001', name: 'Batik Heritage Tote Bag', location: 'WH-A / Shelf 3', current: 234, min: 50, max: 300, reorderPoint: 60 },
+  { sku: 'SKU-002', name: 'Pewter Desk Organizer', location: 'WH-A / Shelf 7', current: 12, min: 20, max: 150, reorderPoint: 25 },
+  { sku: 'SKU-003', name: 'Traditional Songket Scarf', location: 'WH-B / Shelf 1', current: 89, min: 30, max: 200, reorderPoint: 40 },
+  { sku: 'SKU-004', name: 'Ceramic Pour-Over Set', location: 'WH-B / Shelf 4', current: 0, min: 10, max: 80, reorderPoint: 15 },
+  { sku: 'SKU-005', name: 'Rattan Woven Basket', location: 'WH-A / Shelf 2', current: 67, min: 20, max: 120, reorderPoint: 25 },
+  { sku: 'SKU-006', name: 'Handmade Nyonya Pouch', location: 'WH-C / Shelf 1', current: 5, min: 15, max: 100, reorderPoint: 20 },
+  { sku: 'SKU-007', name: 'Bamboo Cutting Board Set', location: 'WH-A / Shelf 9', current: 145, min: 30, max: 200, reorderPoint: 40 },
+  { sku: 'SKU-008', name: 'Linen Throw Cushion Cover', location: 'WH-C / Shelf 5', current: 312, min: 50, max: 400, reorderPoint: 70 },
+  { sku: 'SKU-009', name: 'Kopitiam Enamel Mug', location: 'WH-B / Shelf 2', current: 28, min: 30, max: 200, reorderPoint: 40 },
+  { sku: 'SKU-010', name: 'Shibori Dyed Silk Shawl', location: 'WH-A / Shelf 5', current: 18, min: 10, max: 80, reorderPoint: 15 },
+];
 
-type MovementType = {
-  date: string; sku: string; type: string; qty: number; reason: string; warehouse: string;
-};
+function getStockStatus(item: typeof inventoryItems[0]) {
+  if (item.current === 0) return { label: 'Out of Stock', color: '#8AAFC8', bg: '#F0F5FF' };
+  if (item.current <= item.reorderPoint) return { label: 'Reorder', color: '#6D8196', bg: '#E8F0FF' };
+  if (item.current >= item.max * 0.9) return { label: 'Overstocked', color: '#000080', bg: '#E8F0FF' };
+  return { label: 'Normal', color: '#4A7B5F', bg: '#EEF5F1' };
+}
 
-export default function InventoryPage() {
-  const [search, setSearch] = useState("");
-  const [warehouseFilter, setWarehouseFilter] = useState("ALL");
-  const [tab, setTab] = useState<"stock" | "movements" | "low-stock">("stock");
-  const [adjustModal, setAdjustModal] = useState<string | null>(null);
-  const [inventory, setInventory] = useState<InventoryType[]>([]);
-  const [movements, setMovements] = useState<MovementType[]>([]);
-  const [loading, setLoading] = useState(true);
+function StockBar({ current, min, max }: { current: number; min: number; max: number }) {
+  const pct = Math.min((current / max) * 100, 100);
+  const warn = current <= min * 1.25;
+  return (
+    <div className="relative h-1.5 w-full" style={{ background: '#EEF5FF', minWidth: 80 }}>
+      <div
+        className="absolute left-0 top-0 h-full transition-all"
+        style={{
+          width: `${pct}%`,
+          background: current === 0 ? '#C8DFF0' : warn ? '#6D8196' : '#ADD8E6',
+        }}
+      />
+      <div
+        className="absolute top-0 h-full w-px"
+        style={{ left: `${(min / max) * 100}%`, background: '#C8DFF0' }}
+      />
+    </div>
+  );
+}
 
-  const fetchInventory = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams({ page: "1", limit: "50" });
-      if (search) params.set("search", search);
-      const res = await fetch(`/api/inventory?${params}`);
-      const json = await res.json();
-      if (json.success) {
-        setInventory(json.data.items || []);
-        setMovements(json.data.movements || []);
-      }
-    } catch (err) {
-      console.error("Failed to fetch inventory:", err);
-    } finally {
-      setLoading(false);
-    }
-  }, [search]);
-
-  useEffect(() => {
-    fetchInventory();
-  }, [fetchInventory]);
-
-  const getTotal = (item: InventoryType) =>
-    Object.values(item.warehouses).reduce((a, b) => a + b, 0);
-
-  const filtered = inventory.filter((item) => {
-    const matchSearch = item.name.toLowerCase().includes(search.toLowerCase()) ||
-      item.sku.toLowerCase().includes(search.toLowerCase());
-    return matchSearch;
-  });
-
-  const lowStockItems = inventory.filter((item) => getTotal(item) <= item.reorderPoint);
+export default function Inventory() {
+  const alerts = inventoryItems.filter((i) => i.current <= i.reorderPoint);
+  const totalValue = inventoryItems.reduce((sum, i) => sum + i.current * 180, 0);
 
   return (
-    <div>
-      <TopBar
-        title="Inventory"
-        subtitle="Track stock levels across all warehouses"
-        actions={
-          <div className="flex gap-2">
-            <button className="erp-btn erp-btn-secondary text-sm">Export</button>
-            <button className="erp-btn erp-btn-primary text-sm">+ Adjustment</button>
+    <div className="p-6" style={{ fontFamily: "'IBM Plex Sans', sans-serif" }}>
+      {/* Header */}
+      <div className="flex items-end justify-between mb-6">
+        <div>
+          <p className="text-[9px] tracking-[0.25em] uppercase" style={{ color: '#6D8196' }}>Warehouse</p>
+          <h1 className="text-xl mt-0.5" style={{ letterSpacing: '-0.01em', color: '#000080' }}>
+            Inventory
+          </h1>
+        </div>
+        <button
+          className="flex items-center gap-1.5 bg-white text-[10px] tracking-[0.1em] uppercase px-3 py-2 transition-colors"
+          style={{ border: '1px solid #C8DFF0', color: '#6D8196' }}
+        >
+          <RefreshCw size={11} />
+          Sync Stock
+        </button>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-4 gap-3 mb-6">
+        {[
+          { label: 'Total SKUs', value: inventoryItems.length.toString() },
+          { label: 'Reorder Alerts', value: alerts.length.toString(), accent: true },
+          { label: 'Out of Stock', value: inventoryItems.filter((i) => i.current === 0).length.toString() },
+          { label: 'Est. Stock Value', value: `RM ${(totalValue / 1000).toFixed(0)}k` },
+        ].map((s) => (
+          <div key={s.label} className="bg-white p-4" style={{ border: '1px solid #C8DFF0' }}>
+            <p className="text-[9px] tracking-[0.2em] uppercase" style={{ color: '#6D8196' }}>{s.label}</p>
+            <p
+              className="text-2xl mt-1"
+              style={{
+                fontFamily: "'IBM Plex Mono', monospace",
+                color: s.accent ? '#6D8196' : '#000080',
+              }}
+            >
+              {s.value}
+            </p>
           </div>
-        }
-      />
+        ))}
+      </div>
 
-      <div className="p-8 fade-in">
-        {loading ? (
-          <div className="p-8 text-center" style={{ color: "#94a3b8" }}>
-            <div className="animate-pulse">Loading...</div>
-          </div>
-        ) : (
-          <>
-            {/* Stats */}
-            <div className="grid grid-cols-4 gap-4 mb-6">
-              <div className="erp-card">
-                <div className="text-sm font-medium mb-1" style={{ color: "#64748b" }}>Total SKUs</div>
-                <div className="text-3xl font-bold" style={{ color: "#0f172a" }}>{inventory.length}</div>
-                <div className="text-xs mt-1" style={{ color: "#94a3b8" }}>Across 3 warehouses</div>
-              </div>
-              <div className="erp-card">
-                <div className="text-sm font-medium mb-1" style={{ color: "#64748b" }}>Total Units</div>
-                <div className="text-3xl font-bold" style={{ color: "#0f172a" }}>
-                  {inventory.reduce((acc, item) => acc + getTotal(item), 0)}
-                </div>
-                <div className="text-xs mt-1" style={{ color: "#94a3b8" }}>All locations</div>
-              </div>
-              <div className="erp-card">
-                <div className="text-sm font-medium mb-1" style={{ color: "#64748b" }}>Reserved</div>
-                <div className="text-3xl font-bold" style={{ color: "#d97706" }}>
-                  {inventory.reduce((acc, item) => acc + item.reserved, 0)}
-                </div>
-                <div className="text-xs mt-1" style={{ color: "#94a3b8" }}>Pending fulfillment</div>
-              </div>
-              <div className="erp-card">
-                <div className="text-sm font-medium mb-1" style={{ color: "#dc2626" }}>Low Stock</div>
-                <div className="text-3xl font-bold" style={{ color: "#dc2626" }}>{lowStockItems.length}</div>
-                <div className="text-xs mt-1" style={{ color: "#94a3b8" }}>Below reorder point</div>
-              </div>
-            </div>
+      {/* Alert banner */}
+      {alerts.length > 0 && (
+        <div
+          className="flex items-center gap-3 px-4 py-3 mb-4"
+          style={{ background: '#E8F0FF', border: '1px solid #ADD8E6' }}
+        >
+          <AlertTriangle size={13} style={{ color: '#6D8196' }} />
+          <p className="text-[11px] tracking-wide" style={{ color: '#000080' }}>
+            {alerts.length} items require reorder — stock below threshold
+          </p>
+        </div>
+      )}
 
-            {/* Warehouse Summary */}
-            <div className="grid grid-cols-3 gap-4 mb-6">
-              {WAREHOUSES.map((wh) => {
-                const total = inventory.reduce((acc, item) => acc + (item.warehouses[wh as keyof typeof item.warehouses] || 0), 0);
-                return (
-                  <div key={wh} className="erp-card">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="font-medium text-sm" style={{ color: "#374151" }}>{wh}</span>
-                    </div>
-                    <div className="text-2xl font-bold" style={{ color: "#0f172a" }}>{total}</div>
-                    <div className="text-xs" style={{ color: "#94a3b8" }}>units in stock</div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Tabs */}
-            <div className="flex gap-1 mb-5 p-1 rounded-lg" style={{ background: "#f1f5f9", width: "fit-content" }}>
-              {[{ key: "stock", label: "Stock Levels" }, { key: "movements", label: "Movements" }, { key: "low-stock", label: `Low Stock (${lowStockItems.length})` }].map((t) => (
-                <button
-                  key={t.key}
-                  onClick={() => setTab(t.key as typeof tab)}
-                  className="px-4 py-2 rounded-md text-sm font-medium transition-all"
-                  style={{
-                    background: tab === t.key ? "white" : "transparent",
-                    color: tab === t.key ? "#0f172a" : "#64748b",
-                    boxShadow: tab === t.key ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
-                  }}
+      {/* Inventory table */}
+      <div className="bg-white" style={{ border: '1px solid #C8DFF0' }}>
+        <table className="w-full">
+          <thead>
+            <tr style={{ borderBottom: '1px solid #EEF5FF' }}>
+              {['SKU', 'Product', 'Location', 'Current Stock', 'Level', 'Min / Max', 'Status'].map((h) => (
+                <th
+                  key={h}
+                  className="text-left px-5 py-3 font-normal text-[9px] tracking-[0.15em] uppercase"
+                  style={{ color: '#6D8196' }}
                 >
-                  {t.label}
-                </button>
+                  {h}
+                </th>
               ))}
-            </div>
-
-            {/* Stock Table */}
-            {tab === "stock" && (
-              <div>
-                <div className="flex gap-3 mb-4">
-                  <input type="text" placeholder="Search products..." value={search} onChange={(e) => setSearch(e.target.value)} className="erp-input" style={{ maxWidth: "320px" }} />
-                  <select className="erp-input" style={{ width: "200px" }} value={warehouseFilter} onChange={(e) => setWarehouseFilter(e.target.value)}>
-                    <option value="ALL">All Warehouses</option>
-                    {WAREHOUSES.map((wh) => <option key={wh}>{wh}</option>)}
-                  </select>
-                </div>
-                <div className="erp-card p-0 overflow-hidden">
-                  {filtered.length > 0 ? (
-                    <table className="erp-table">
-                      <thead>
-                        <tr>
-                          <th>Product / SKU</th>
-                          <th>Category</th>
-                          {WAREHOUSES.map((wh) => <th key={wh}>{wh.split(" ")[0]} {wh.split(" ")[1]}</th>)}
-                          <th>Total</th>
-                          <th>Reserved</th>
-                          <th>Available</th>
-                          <th>Reorder Point</th>
-                          <th>Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filtered.map((item) => {
-                          const total = getTotal(item);
-                          const available = total - item.reserved;
-                          const isLow = total <= item.reorderPoint;
-                          return (
-                            <tr key={item.id}>
-                              <td>
-                                <div className="font-medium text-sm" style={{ color: "#0f172a" }}>{item.name}</div>
-                                <div className="text-xs font-mono" style={{ color: "#94a3b8" }}>{item.sku}</div>
-                              </td>
-                              <td className="text-sm" style={{ color: "#374151" }}>{item.category}</td>
-                              {WAREHOUSES.map((wh) => (
-                                <td key={wh} className="text-sm font-medium" style={{ color: (item.warehouses[wh] || 0) === 0 ? "#94a3b8" : "#374151" }}>
-                                  {item.warehouses[wh] || 0}
-                                </td>
-                              ))}
-                              <td className="font-bold text-sm" style={{ color: isLow ? "#dc2626" : "#0f172a" }}>{total}</td>
-                              <td className="text-sm" style={{ color: "#d97706" }}>{item.reserved}</td>
-                              <td className="font-medium text-sm" style={{ color: available <= 5 ? "#dc2626" : "#16a34a" }}>{available}</td>
-                              <td className="text-sm" style={{ color: "#64748b" }}>{item.reorderPoint}</td>
-                              <td>
-                                <div className="flex gap-1">
-                                  <button onClick={() => setAdjustModal(item.sku)} className="erp-btn erp-btn-secondary text-xs py-1 px-2">Adjust</button>
-                                  {isLow && <button className="erp-btn erp-btn-primary text-xs py-1 px-2">Reorder</button>}
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  ) : (
-                    <div className="flex items-center justify-center py-16" style={{ color: "#94a3b8" }}>
-                      <div className="text-center">
-                        <div className="text-4xl mb-3">📦</div>
-                        <div className="text-base font-medium mb-1">No inventory items yet</div>
-                        <div className="text-sm">Add products to start tracking stock levels</div>
-                      </div>
+            </tr>
+          </thead>
+          <tbody>
+            {inventoryItems.map((item) => {
+              const status = getStockStatus(item);
+              return (
+                <tr
+                  key={item.sku}
+                  className="transition-colors"
+                  style={{ borderBottom: '1px solid #F5F9FF' }}
+                >
+                  <td
+                    className="px-5 py-3.5 text-[11px]"
+                    style={{ fontFamily: "'IBM Plex Mono', monospace", color: '#6D8196' }}
+                  >
+                    {item.sku}
+                  </td>
+                  <td className="px-5 py-3.5 text-xs" style={{ color: '#1A2540' }}>{item.name}</td>
+                  <td
+                    className="px-5 py-3.5 text-[10px]"
+                    style={{ fontFamily: "'IBM Plex Mono', monospace", color: '#8AAFC8' }}
+                  >
+                    {item.location}
+                  </td>
+                  <td className="px-5 py-3.5">
+                    <div className="flex items-center gap-1.5">
+                      <span
+                        className="text-base"
+                        style={{
+                          fontFamily: "'IBM Plex Mono', monospace",
+                          color: item.current === 0 ? '#8AAFC8' : item.current <= item.reorderPoint ? '#6D8196' : '#000080',
+                        }}
+                      >
+                        {item.current}
+                      </span>
+                      {item.current <= item.reorderPoint && item.current > 0 && (
+                        <ArrowDown size={11} style={{ color: '#6D8196' }} />
+                      )}
                     </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Movements */}
-            {tab === "movements" && (
-              <div className="erp-card p-0 overflow-hidden">
-                {movements.length > 0 ? (
-                  <table className="erp-table">
-                    <thead>
-                      <tr>
-                        <th>Date & Time</th>
-                        <th>SKU</th>
-                        <th>Type</th>
-                        <th>Quantity</th>
-                        <th>Warehouse</th>
-                        <th>Reason</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {movements.map((m, idx) => (
-                        <tr key={idx}>
-                          <td className="text-xs" style={{ color: "#64748b" }}>{m.date}</td>
-                          <td className="font-mono text-xs" style={{ color: "#2563eb" }}>{m.sku}</td>
-                          <td>
-                            <span className="badge text-xs" style={{
-                              background: m.type === "IN" ? "#dcfce7" : m.type === "OUT" ? "#fee2e2" : "#ede9fe",
-                              color: m.type === "IN" ? "#166534" : m.type === "OUT" ? "#991b1b" : "#5b21b6"
-                            }}>
-                              {m.type}
-                            </span>
-                          </td>
-                          <td className="font-bold text-sm" style={{ color: m.qty > 0 ? "#16a34a" : "#dc2626" }}>
-                            {m.qty > 0 ? "+" : ""}{m.qty}
-                          </td>
-                          <td className="text-sm" style={{ color: "#374151" }}>{m.warehouse}</td>
-                          <td className="text-sm" style={{ color: "#64748b" }}>{m.reason}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                ) : (
-                  <div className="flex items-center justify-center py-16" style={{ color: "#94a3b8" }}>
-                    <div className="text-center">
-                      <div className="text-4xl mb-3">📋</div>
-                      <div className="text-base font-medium mb-1">No movements recorded</div>
-                      <div className="text-sm">Stock movements will appear here</div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Low Stock */}
-            {tab === "low-stock" && (
-              <div className="erp-card p-0 overflow-hidden">
-                {lowStockItems.length > 0 ? (
-                  <>
-                    <div className="p-4 border-b" style={{ background: "#fef3c7", borderColor: "#fde68a" }}>
-                      <p className="text-sm font-medium" style={{ color: "#92400e" }}>
-                        {lowStockItems.length} items are at or below their reorder point. Take action to prevent stockouts.
-                      </p>
-                    </div>
-                    <table className="erp-table">
-                      <thead>
-                        <tr>
-                          <th>Product</th>
-                          <th>Current Stock</th>
-                          <th>Reorder Point</th>
-                          <th>Suggested Order</th>
-                          <th>Action</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {lowStockItems.map((item) => (
-                          <tr key={item.id}>
-                            <td>
-                              <div className="font-medium text-sm" style={{ color: "#0f172a" }}>{item.name}</div>
-                              <div className="text-xs font-mono" style={{ color: "#94a3b8" }}>{item.sku}</div>
-                            </td>
-                            <td>
-                              <span className="font-bold text-lg" style={{ color: "#dc2626" }}>{getTotal(item)}</span>
-                              <span className="text-xs ml-1" style={{ color: "#94a3b8" }}>units</span>
-                            </td>
-                            <td style={{ color: "#64748b" }}>{item.reorderPoint} units</td>
-                            <td style={{ color: "#374151" }}>{item.reorderQty} units</td>
-                            <td>
-                              <button className="erp-btn erp-btn-primary text-sm">Create Purchase Order</button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </>
-                ) : (
-                  <div className="flex items-center justify-center py-16" style={{ color: "#94a3b8" }}>
-                    <div className="text-center">
-                      <div className="text-4xl mb-3">✅</div>
-                      <div className="text-base font-medium mb-1">All stock levels healthy</div>
-                      <div className="text-sm">No items below reorder point</div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Adjust Modal */}
-            {adjustModal && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.5)" }}>
-                <div className="erp-card w-96">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-semibold">Stock Adjustment</h3>
-                    <button onClick={() => setAdjustModal(null)} style={{ color: "#94a3b8", fontSize: "20px" }}>×</button>
-                  </div>
-                  <div className="text-sm mb-4" style={{ color: "#64748b" }}>SKU: <span className="font-mono font-medium" style={{ color: "#2563eb" }}>{adjustModal}</span></div>
-                  <div className="space-y-3">
-                    <div>
-                      <label className="block text-sm font-medium mb-1.5">Warehouse</label>
-                      <select className="erp-input">
-                        {WAREHOUSES.map((wh) => <option key={wh}>{wh}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium mb-1.5">Adjustment Type</label>
-                      <select className="erp-input">
-                        <option value="IN">Add Stock (IN)</option>
-                        <option value="OUT">Remove Stock (OUT)</option>
-                        <option value="ADJUSTMENT">Adjustment</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium mb-1.5">Quantity</label>
-                      <input type="number" className="erp-input" placeholder="0" min="1" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium mb-1.5">Reason</label>
-                      <input type="text" className="erp-input" placeholder="e.g. Purchase order #123" />
-                    </div>
-                    <div className="flex gap-2 pt-2">
-                      <button className="erp-btn erp-btn-primary flex-1 justify-center">Apply Adjustment</button>
-                      <button onClick={() => setAdjustModal(null)} className="erp-btn erp-btn-secondary flex-1 justify-center">Cancel</button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </>
-        )}
+                  </td>
+                  <td className="px-5 py-3.5 w-28">
+                    <StockBar current={item.current} min={item.min} max={item.max} />
+                  </td>
+                  <td
+                    className="px-5 py-3.5 text-[10px]"
+                    style={{ fontFamily: "'IBM Plex Mono', monospace", color: '#8AAFC8' }}
+                  >
+                    {item.min} / {item.max}
+                  </td>
+                  <td className="px-5 py-3.5">
+                    <span
+                      className="px-2 py-0.5 text-[9px] tracking-[0.1em] uppercase"
+                      style={{ color: status.color, background: status.bg }}
+                    >
+                      {status.label}
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     </div>
   );

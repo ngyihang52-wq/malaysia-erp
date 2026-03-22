@@ -1,290 +1,202 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
-import TopBar from "@/components/layout/TopBar";
 
-type OrderType = {
-  id: string; platform: string; customer: string; email: string; items: number;
-  subtotal: number; shippingFee: number; discount: number; total: number;
-  status: string; payment: string; tracking: string | null; date: string;
+import { useState } from 'react';
+import { Search, Filter, Download, ChevronDown } from 'lucide-react';
+
+const allOrders = [
+  { id: 'ORD-2847', customer: 'Ahmad bin Rashid', channel: 'Shopee', items: 3, amount: 284.0, status: 'Shipped', date: '20 Mar 2026' },
+  { id: 'ORD-2846', customer: 'Lim Wei Xin', channel: 'TikTok', items: 1, amount: 156.5, status: 'Processing', date: '20 Mar 2026' },
+  { id: 'ORD-2845', customer: 'Nurul Aisyah', channel: 'Shopee', items: 5, amount: 892.0, status: 'Pending', date: '19 Mar 2026' },
+  { id: 'ORD-2844', customer: 'Raj Kumar', channel: 'Lazada', items: 2, amount: 445.0, status: 'Delivered', date: '19 Mar 2026' },
+  { id: 'ORD-2843', customer: 'Siti Aminah', channel: 'Shopify', items: 4, amount: 1200.0, status: 'Shipped', date: '18 Mar 2026' },
+  { id: 'ORD-2842', customer: 'Chen Ming', channel: 'TikTok', items: 2, amount: 320.0, status: 'Delivered', date: '18 Mar 2026' },
+  { id: 'ORD-2841', customer: 'Priya Devi', channel: 'Shopee', items: 1, amount: 78.5, status: 'Delivered', date: '17 Mar 2026' },
+  { id: 'ORD-2840', customer: 'Azman Yusof', channel: 'Lazada', items: 3, amount: 560.0, status: 'Shipped', date: '17 Mar 2026' },
+  { id: 'ORD-2839', customer: 'Mei Lin', channel: 'Shopify', items: 2, amount: 890.0, status: 'Pending', date: '16 Mar 2026' },
+  { id: 'ORD-2838', customer: 'Hafiz Kamal', channel: 'Shopee', items: 1, amount: 145.0, status: 'Processing', date: '16 Mar 2026' },
+  { id: 'ORD-2837', customer: 'Tan Bee Lian', channel: 'TikTok', items: 4, amount: 674.0, status: 'Delivered', date: '15 Mar 2026' },
+  { id: 'ORD-2836', customer: 'Rosnah Binti Ali', channel: 'Shopee', items: 2, amount: 234.0, status: 'Shipped', date: '15 Mar 2026' },
+];
+
+const statuses = ['All', 'Pending', 'Processing', 'Shipped', 'Delivered'];
+
+const statusColor: Record<string, string> = {
+  Shipped: '#4A7B5F',
+  Processing: '#6D8196',
+  Pending: '#8AAFC8',
+  Delivered: '#4A7B5F',
 };
 
-const platformBadge: Record<string, { bg: string; color: string }> = {
-  SHOPIFY: { bg: "#f0fdf4", color: "#166534" },
-  TIKTOK: { bg: "#0f172a", color: "#fff" },
-  SHOPEE: { bg: "#fff7ed", color: "#9a3412" },
-  LAZADA: { bg: "#eff6ff", color: "#1e40af" },
-  AMAZON: { bg: "#fffbeb", color: "#92400e" },
+const statusBg: Record<string, string> = {
+  Shipped: '#EEF5F1',
+  Processing: '#E8F0FF',
+  Pending: '#F0F5FF',
+  Delivered: '#EEF5F1',
 };
 
-const statusStyle: Record<string, { bg: string; color: string }> = {
-  PENDING: { bg: "#fef3c7", color: "#92400e" },
-  CONFIRMED: { bg: "#dbeafe", color: "#1e40af" },
-  PROCESSING: { bg: "#ede9fe", color: "#5b21b6" },
-  SHIPPED: { bg: "#f0fdf4", color: "#166534" },
-  DELIVERED: { bg: "#dcfce7", color: "#14532d" },
-  CANCELLED: { bg: "#fee2e2", color: "#991b1b" },
-  RETURNED: { bg: "#fff7ed", color: "#9a3412" },
-  REFUNDED: { bg: "#f1f5f9", color: "#475569" },
-};
+export default function Orders() {
+  const [activeStatus, setActiveStatus] = useState('All');
+  const [search, setSearch] = useState('');
 
-export default function OrdersPage() {
-  const [search, setSearch] = useState("");
-  const [platformFilter, setPlatformFilter] = useState("ALL");
-  const [statusFilter, setStatusFilter] = useState("ALL");
-  const [selected, setSelected] = useState<string | null>(null);
-  const [orders, setOrders] = useState<OrderType[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [pagination, setPagination] = useState({ page: 1, limit: 50, total: 0, pages: 0 });
-
-  const fetchOrders = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams({
-        page: String(pagination.page),
-        limit: String(pagination.limit),
-      });
-      if (search) params.set("search", search);
-      if (statusFilter !== "ALL") params.set("status", statusFilter);
-      if (platformFilter !== "ALL") params.set("platform", platformFilter);
-      const res = await fetch(`/api/orders?${params}`);
-      const json = await res.json();
-      if (json.success) {
-        setOrders(json.data.orders);
-        setPagination(json.data.pagination);
-      }
-    } catch (err) {
-      console.error("Failed to fetch orders:", err);
-    } finally {
-      setLoading(false);
-    }
-  }, [search, statusFilter, platformFilter, pagination.page, pagination.limit]);
-
-  useEffect(() => {
-    fetchOrders();
-  }, [fetchOrders]);
-
-  const filtered = orders.filter((o) => {
-    const matchSearch = o.id.toLowerCase().includes(search.toLowerCase()) ||
-      o.customer.toLowerCase().includes(search.toLowerCase());
-    const matchPlatform = platformFilter === "ALL" || o.platform === platformFilter;
-    const matchStatus = statusFilter === "ALL" || o.status === statusFilter;
-    return matchSearch && matchPlatform && matchStatus;
+  const filtered = allOrders.filter((o) => {
+    const matchStatus = activeStatus === 'All' || o.status === activeStatus;
+    const matchSearch =
+      o.customer.toLowerCase().includes(search.toLowerCase()) ||
+      o.id.toLowerCase().includes(search.toLowerCase());
+    return matchStatus && matchSearch;
   });
 
-  const selectedOrder = orders.find((o) => o.id === selected);
-
-  const totalCount = pagination.total || orders.length;
-  const pendingCount = orders.filter((o) => o.status === "PENDING").length;
-  const confirmedCount = orders.filter((o) => o.status === "CONFIRMED").length;
-  const shippedCount = orders.filter((o) => o.status === "SHIPPED").length;
-  const deliveredCount = orders.filter((o) => o.status === "DELIVERED").length;
-  const cancelledCount = orders.filter((o) => o.status === "CANCELLED").length;
-
   return (
-    <div>
-      <TopBar
-        title="Orders"
-        subtitle={`${totalCount} total orders across all channels`}
-        actions={
-          <button className="erp-btn erp-btn-primary text-sm">
-            Sync Orders
+    <div className="p-6" style={{ fontFamily: "'IBM Plex Sans', sans-serif" }}>
+      {/* Header */}
+      <div className="flex items-end justify-between mb-6">
+        <div>
+          <p className="text-[9px] tracking-[0.25em] uppercase" style={{ color: '#6D8196' }}>Management</p>
+          <h1 className="text-xl mt-0.5" style={{ letterSpacing: '-0.01em', color: '#000080' }}>
+            Orders
+          </h1>
+        </div>
+        <div className="flex items-center gap-2">
+          <button className="flex items-center gap-1.5 bg-white text-[10px] tracking-[0.1em] uppercase px-3 py-2 transition-colors" style={{ border: '1px solid #C8DFF0', color: '#6D8196' }}>
+            <Filter size={11} />
+            Filter
           </button>
-        }
-      />
+          <button className="flex items-center gap-1.5 bg-white text-[10px] tracking-[0.1em] uppercase px-3 py-2 transition-colors" style={{ border: '1px solid #C8DFF0', color: '#6D8196' }}>
+            <Download size={11} />
+            Export
+          </button>
+        </div>
+      </div>
 
-      <div className="p-8 fade-in">
-        {loading ? (
-          <div className="p-8 text-center" style={{ color: "#94a3b8" }}>
-            <div className="animate-pulse">Loading...</div>
+      {/* Summary stats */}
+      <div className="grid grid-cols-4 gap-3 mb-6">
+        {[
+          { label: 'Total', count: allOrders.length, color: '#000080' },
+          { label: 'Pending', count: allOrders.filter((o) => o.status === 'Pending').length, color: '#8AAFC8' },
+          { label: 'Processing', count: allOrders.filter((o) => o.status === 'Processing').length, color: '#6D8196' },
+          { label: 'Shipped', count: allOrders.filter((o) => o.status === 'Shipped').length, color: '#4A7B5F' },
+        ].map((s) => (
+          <div key={s.label} className="bg-white p-4" style={{ border: '1px solid #C8DFF0' }}>
+            <p className="text-[9px] tracking-[0.2em] uppercase" style={{ color: '#6D8196' }}>{s.label}</p>
+            <p
+              className="text-2xl mt-1"
+              style={{ fontFamily: "'IBM Plex Mono', monospace", color: s.color }}
+            >
+              {s.count}
+            </p>
           </div>
-        ) : (
-          <>
-            {/* Summary cards */}
-            <div className="grid grid-cols-6 gap-4 mb-6">
-              {[
-                { label: "All", count: totalCount, color: "#2563eb" },
-                { label: "Pending", count: pendingCount, color: "#d97706" },
-                { label: "Confirmed", count: confirmedCount, color: "#2563eb" },
-                { label: "Shipped", count: shippedCount, color: "#7c3aed" },
-                { label: "Delivered", count: deliveredCount, color: "#16a34a" },
-                { label: "Cancelled", count: cancelledCount, color: "#dc2626" },
-              ].map((s) => (
-                <button
-                  key={s.label}
-                  onClick={() => setStatusFilter(s.label === "All" ? "ALL" : s.label.toUpperCase())}
-                  className="erp-card text-center cursor-pointer transition-all hover:shadow-md"
-                  style={{ borderTop: `3px solid ${s.color}` }}
+        ))}
+      </div>
+
+      {/* Filter bar */}
+      <div className="bg-white p-4 mb-3 flex items-center justify-between gap-4" style={{ border: '1px solid #C8DFF0' }}>
+        <div className="flex items-center gap-1">
+          {statuses.map((s) => (
+            <button
+              key={s}
+              onClick={() => setActiveStatus(s)}
+              className="px-3 py-1.5 text-[10px] tracking-[0.1em] uppercase transition-colors"
+              style={{
+                background: activeStatus === s ? '#000080' : 'transparent',
+                color: activeStatus === s ? '#FFFFFF' : '#6D8196',
+              }}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+        <div className="relative flex-1 max-w-xs">
+          <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: '#ADD8E6' }} />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search orders..."
+            className="w-full pl-8 pr-3 py-1.5 text-[11px] outline-none placeholder:text-[#ADD8E6]"
+            style={{ fontFamily: "'IBM Plex Sans', sans-serif", background: '#F0F8FF', border: '1px solid #C8DFF0', color: '#000080' }}
+          />
+        </div>
+      </div>
+
+      {/* Table */}
+      <div className="bg-white" style={{ border: '1px solid #C8DFF0' }}>
+        <table className="w-full">
+          <thead>
+            <tr style={{ borderBottom: '1px solid #EEF5FF' }}>
+              {['Order ID', 'Customer', 'Channel', 'Items', 'Amount', 'Status', 'Date'].map((h) => (
+                <th
+                  key={h}
+                  className="text-left px-5 py-3 font-normal text-[9px] tracking-[0.15em] uppercase"
+                  style={{ color: '#6D8196' }}
                 >
-                  <div className="text-2xl font-bold" style={{ color: s.color }}>{s.count}</div>
-                  <div className="text-xs font-medium mt-1" style={{ color: "#64748b" }}>{s.label}</div>
-                </button>
+                  <span className="flex items-center gap-1">
+                    {h}
+                    <ChevronDown size={9} style={{ color: '#ADD8E6' }} />
+                  </span>
+                </th>
               ))}
-            </div>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((order) => (
+              <tr
+                key={order.id}
+                className="transition-colors cursor-pointer"
+                style={{ borderBottom: '1px solid #F5F9FF' }}
+              >
+                <td
+                  className="px-5 py-3.5 text-[11px]"
+                  style={{ fontFamily: "'IBM Plex Mono', monospace", color: '#6D8196' }}
+                >
+                  #{order.id}
+                </td>
+                <td className="px-5 py-3.5 text-xs" style={{ color: '#1A2540' }}>{order.customer}</td>
+                <td className="px-5 py-3.5">
+                  <span className="text-[9px] tracking-wider uppercase" style={{ color: '#6D8196' }}>{order.channel}</span>
+                </td>
+                <td
+                  className="px-5 py-3.5 text-[11px]"
+                  style={{ fontFamily: "'IBM Plex Mono', monospace", color: '#4A6080' }}
+                >
+                  {order.items}
+                </td>
+                <td
+                  className="px-5 py-3.5 text-[11px]"
+                  style={{ fontFamily: "'IBM Plex Mono', monospace", color: '#000080' }}
+                >
+                  RM {order.amount.toFixed(2)}
+                </td>
+                <td className="px-5 py-3.5">
+                  <span
+                    className="px-2 py-0.5 text-[9px] tracking-[0.1em] uppercase"
+                    style={{
+                      color: statusColor[order.status],
+                      background: statusBg[order.status],
+                    }}
+                  >
+                    {order.status}
+                  </span>
+                </td>
+                <td
+                  className="px-5 py-3.5 text-[10px]"
+                  style={{ fontFamily: "'IBM Plex Mono', monospace", color: '#6D8196' }}
+                >
+                  {order.date}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
 
-            {/* Filters */}
-            <div className="flex gap-3 mb-5">
-              <input
-                type="text"
-                placeholder="Search by order ID or customer..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="erp-input"
-                style={{ maxWidth: "320px" }}
-              />
-              <select className="erp-input" style={{ width: "160px" }} value={platformFilter} onChange={(e) => setPlatformFilter(e.target.value)}>
-                <option value="ALL">All Channels</option>
-                <option value="SHOPIFY">Shopify</option>
-                <option value="TIKTOK">TikTok</option>
-                <option value="SHOPEE">Shopee</option>
-                <option value="LAZADA">Lazada</option>
-                <option value="AMAZON">Amazon</option>
-              </select>
-              <select className="erp-input" style={{ width: "160px" }} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-                <option value="ALL">All Statuses</option>
-                <option value="PENDING">Pending</option>
-                <option value="CONFIRMED">Confirmed</option>
-                <option value="PROCESSING">Processing</option>
-                <option value="SHIPPED">Shipped</option>
-                <option value="DELIVERED">Delivered</option>
-                <option value="CANCELLED">Cancelled</option>
-              </select>
-            </div>
-
-            <div className="flex gap-5">
-              {/* Table */}
-              <div className="erp-card flex-1 p-0 overflow-hidden">
-                {filtered.length > 0 ? (
-                  <table className="erp-table">
-                    <thead>
-                      <tr>
-                        <th>Order ID</th>
-                        <th>Channel</th>
-                        <th>Customer</th>
-                        <th>Items</th>
-                        <th>Total</th>
-                        <th>Status</th>
-                        <th>Date</th>
-                        <th>Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filtered.map((order) => (
-                        <tr
-                          key={order.id}
-                          style={{ cursor: "pointer", background: selected === order.id ? "#eff6ff" : undefined }}
-                          onClick={() => setSelected(selected === order.id ? null : order.id)}
-                        >
-                          <td className="font-mono text-xs font-medium" style={{ color: "#2563eb" }}>{order.id}</td>
-                          <td>
-                            <span className="badge text-xs" style={platformBadge[order.platform]}>
-                              {order.platform === "TIKTOK" ? "TikTok" : order.platform.charAt(0) + order.platform.slice(1).toLowerCase()}
-                            </span>
-                          </td>
-                          <td>
-                            <div className="font-medium text-sm" style={{ color: "#0f172a" }}>{order.customer}</div>
-                            <div className="text-xs" style={{ color: "#94a3b8" }}>{order.email}</div>
-                          </td>
-                          <td className="text-sm" style={{ color: "#374151" }}>{order.items} items</td>
-                          <td className="font-semibold text-sm" style={{ color: "#0f172a" }}>RM {order.total.toFixed(2)}</td>
-                          <td>
-                            <span className="badge text-xs" style={statusStyle[order.status]}>
-                              {order.status}
-                            </span>
-                          </td>
-                          <td className="text-xs" style={{ color: "#64748b" }}>{order.date}</td>
-                          <td>
-                            <button className="erp-btn erp-btn-secondary text-xs py-1 px-3">
-                              View
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                ) : (
-                  <div className="flex items-center justify-center py-16" style={{ color: "#94a3b8" }}>
-                    <div className="text-center">
-                      <div className="text-4xl mb-3">📦</div>
-                      <div className="text-base font-medium mb-1">No orders yet</div>
-                      <div className="text-sm">Orders from all channels will appear here</div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Detail Panel */}
-              {selectedOrder && (
-                <div className="erp-card w-80 flex-shrink-0" style={{ alignSelf: "flex-start" }}>
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-semibold" style={{ color: "#0f172a" }}>Order Details</h3>
-                    <button onClick={() => setSelected(null)} style={{ color: "#94a3b8", fontSize: "20px" }}>×</button>
-                  </div>
-                  <div className="font-mono text-sm font-medium mb-3" style={{ color: "#2563eb" }}>{selectedOrder.id}</div>
-
-                  <div className="space-y-3 text-sm">
-                    <div className="flex justify-between">
-                      <span style={{ color: "#64748b" }}>Channel</span>
-                      <span className="badge text-xs" style={platformBadge[selectedOrder.platform]}>
-                        {selectedOrder.platform}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span style={{ color: "#64748b" }}>Status</span>
-                      <span className="badge text-xs" style={statusStyle[selectedOrder.status]}>{selectedOrder.status}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span style={{ color: "#64748b" }}>Payment</span>
-                      <span className="font-medium" style={{ color: selectedOrder.payment === "PAID" ? "#16a34a" : "#d97706" }}>{selectedOrder.payment}</span>
-                    </div>
-                    <div className="pt-3 border-t" style={{ borderColor: "#f1f5f9" }}>
-                      <div className="font-medium mb-2" style={{ color: "#374151" }}>Customer</div>
-                      <div style={{ color: "#0f172a" }}>{selectedOrder.customer}</div>
-                      <div className="text-xs" style={{ color: "#94a3b8" }}>{selectedOrder.email}</div>
-                    </div>
-                    <div className="pt-3 border-t" style={{ borderColor: "#f1f5f9" }}>
-                      <div className="font-medium mb-2" style={{ color: "#374151" }}>Pricing</div>
-                      <div className="space-y-1">
-                        <div className="flex justify-between text-xs">
-                          <span style={{ color: "#64748b" }}>Subtotal</span>
-                          <span>RM {selectedOrder.subtotal.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between text-xs">
-                          <span style={{ color: "#64748b" }}>Shipping</span>
-                          <span>RM {selectedOrder.shippingFee.toFixed(2)}</span>
-                        </div>
-                        {selectedOrder.discount > 0 && (
-                          <div className="flex justify-between text-xs">
-                            <span style={{ color: "#64748b" }}>Discount</span>
-                            <span style={{ color: "#16a34a" }}>-RM {selectedOrder.discount.toFixed(2)}</span>
-                          </div>
-                        )}
-                        <div className="flex justify-between font-semibold pt-1 border-t" style={{ borderColor: "#f1f5f9" }}>
-                          <span>Total</span>
-                          <span>RM {selectedOrder.total.toFixed(2)}</span>
-                        </div>
-                      </div>
-                    </div>
-                    {selectedOrder.tracking && (
-                      <div className="pt-3 border-t" style={{ borderColor: "#f1f5f9" }}>
-                        <div className="text-xs font-medium mb-1" style={{ color: "#64748b" }}>Tracking</div>
-                        <div className="font-mono text-sm" style={{ color: "#2563eb" }}>{selectedOrder.tracking}</div>
-                      </div>
-                    )}
-                    <div className="pt-3 flex gap-2">
-                      {selectedOrder.status === "CONFIRMED" && (
-                        <button className="erp-btn erp-btn-primary text-xs flex-1 justify-center">Ship Order</button>
-                      )}
-                      {selectedOrder.status === "PENDING" && (
-                        <button className="erp-btn erp-btn-secondary text-xs flex-1 justify-center">Confirm</button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </>
+        {filtered.length === 0 && (
+          <div className="py-12 text-center text-xs tracking-wide" style={{ color: '#6D8196' }}>
+            No orders found
+          </div>
         )}
       </div>
+
+      <p className="text-[10px] mt-3 tracking-wide" style={{ color: '#6D8196' }}>
+        Showing {filtered.length} of {allOrders.length} orders
+      </p>
     </div>
   );
 }

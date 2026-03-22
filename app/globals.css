@@ -1,80 +1,84 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
-  --primary: #2563eb;
+  /* Core palette */
+  --background: #FFFAFA;
+  --foreground: #1A1A2E;
+  --primary: #000080;
+  --primary-light: #0A0AB0;
   --primary-foreground: #ffffff;
-  --sidebar-bg: #0f172a;
-  --sidebar-text: #94a3b8;
-  --sidebar-text-active: #ffffff;
+  --accent: #ADD8E6;
+  --accent-muted: #C8DFF0;
+  --muted: #6D8196;
+  --muted-dark: #3A5A9A;
+  --muted-light: #5A7AB8;
+  --nav-text: #7A9DC0;
+
+  /* Sidebar */
+  --sidebar-bg: #000080;
+  --sidebar-border: #1A1AA8;
+  --sidebar-active: #0A0AB0;
+
+  /* Cards & surfaces */
   --card-bg: #ffffff;
-  --border: #e2e8f0;
+  --card-border: #C8DFF0;
+  --border: #C8DFF0;
+
+  /* Status */
+  --status-connected: #ADD8E6;
+  --status-disconnected: #2A3A7A;
+
+  /* Fonts */
+  --font-sans: var(--font-ibm-plex-sans), "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: var(--font-ibm-plex-mono), "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-}
-
-/* Sidebar styles */
-.sidebar {
-  background: var(--sidebar-bg);
-  width: 260px;
-  min-height: 100vh;
-  position: fixed;
-  top: 0;
-  left: 0;
-  z-index: 40;
-  display: flex;
-  flex-direction: column;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
+  width: 5px;
 }
 ::-webkit-scrollbar-track {
-  background: #f1f5f9;
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: var(--accent-muted);
   border-radius: 3px;
-}
-
-/* Card styles */
-.erp-card {
-  background: var(--card-bg);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 24px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
 }
 
 /* Table styles */
 .erp-table {
   width: 100%;
   border-collapse: collapse;
+  font-family: var(--font-sans);
 }
 .erp-table th {
   text-align: left;
-  padding: 12px 16px;
-  font-size: 12px;
-  font-weight: 600;
+  padding: 10px 16px;
+  font-size: 9px;
+  font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: #64748b;
-  background: #f8fafc;
+  letter-spacing: 0.2em;
+  color: var(--muted);
+  background: var(--background);
   border-bottom: 1px solid var(--border);
 }
 .erp-table td {
-  padding: 14px 16px;
-  border-bottom: 1px solid #f1f5f9;
-  font-size: 14px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--foreground);
+  letter-spacing: 0.02em;
 }
 .erp-table tr:hover td {
-  background: #f8fafc;
+  background: #F5F8FC;
 }
 
 /* Badge */
@@ -82,15 +86,17 @@ body {
   display: inline-flex;
   align-items: center;
   padding: 2px 10px;
-  border-radius: 9999px;
-  font-size: 12px;
+  border-radius: 0;
+  font-size: 9px;
   font-weight: 500;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
 }
 
 /* Status indicator */
 .status-dot {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   display: inline-block;
 }
@@ -111,46 +117,57 @@ body {
   animation: fadeIn 0.2s ease-out;
 }
 
-/* Form inputs */
-.erp-input {
+/* Card component */
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  padding: 20px;
+}
+
+/* Input */
+.input {
   width: 100%;
-  padding: 10px 14px;
+  padding: 8px 12px;
   border: 1px solid var(--border);
-  border-radius: 8px;
-  font-size: 14px;
+  font-size: 12px;
+  font-family: var(--font-sans);
+  letter-spacing: 0.02em;
+  color: var(--foreground);
   outline: none;
   transition: border-color 0.15s;
+  background: white;
 }
-.erp-input:focus {
+.input:focus {
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
 
 /* Button */
-.erp-btn {
+.btn {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 18px;
-  border-radius: 8px;
-  font-size: 14px;
+  padding: 8px 16px;
+  font-size: 10px;
   font-weight: 500;
+  font-family: var(--font-sans);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
   cursor: pointer;
   transition: all 0.15s;
   border: none;
 }
-.erp-btn-primary {
+.btn-primary {
   background: var(--primary);
   color: white;
 }
-.erp-btn-primary:hover {
-  background: #1d4ed8;
+.btn-primary:hover {
+  opacity: 0.9;
 }
-.erp-btn-secondary {
+.btn-secondary {
   background: white;
-  color: #374151;
+  color: var(--primary);
   border: 1px solid var(--border);
 }
-.erp-btn-secondary:hover {
-  background: #f9fafb;
+.btn-secondary:hover {
+  background: #F5F8FC;
 }

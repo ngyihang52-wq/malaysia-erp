@@ -1,221 +1,190 @@
 "use client";
-import { useState, useEffect } from "react";
-import { useAuth } from "@/contexts/AuthContext";
 
-interface User {
-  id: string;
-  name: string | null;
-  email: string;
-  role: string;
-  createdAt: string;
-}
+import { useState } from 'react';
+import { UserPlus, Shield, Eye, EyeOff } from 'lucide-react';
 
-const ROLES = ["ADMIN", "MANAGER", "STAFF"];
+const users = [
+  { id: 'USR-001', name: 'Test Admin', email: 'admin@malaysia-erp.com', role: 'Admin', lastActive: '20 Mar 2026, 09:41', status: 'Active' },
+  { id: 'USR-002', name: 'Farah Operations', email: 'farah@malaysia-erp.com', role: 'Manager', lastActive: '20 Mar 2026, 08:12', status: 'Active' },
+  { id: 'USR-003', name: 'Kelvin Logistics', email: 'kelvin@malaysia-erp.com', role: 'Staff', lastActive: '19 Mar 2026, 17:44', status: 'Active' },
+  { id: 'USR-004', name: 'Mei Fong', email: 'meifong@malaysia-erp.com', role: 'Staff', lastActive: '18 Mar 2026, 14:20', status: 'Active' },
+  { id: 'USR-005', name: 'Zack Fulfillment', email: 'zack@malaysia-erp.com', role: 'Staff', lastActive: '10 Mar 2026, 10:00', status: 'Inactive' },
+];
 
-function getRoleBadge(role: string) {
-  const styles: Record<string, { bg: string; color: string }> = {
-    SUPER_ADMIN: { bg: "rgba(168,85,247,0.15)", color: "#d8b4fe" },
-    ADMIN: { bg: "rgba(220,38,38,0.15)", color: "#fca5a5" },
-    MANAGER: { bg: "rgba(37,99,235,0.15)", color: "#93c5fd" },
-    STAFF: { bg: "rgba(22,163,74,0.15)", color: "#86efac" },
-  };
-  const s = styles[role] || styles.STAFF;
-  return (
-    <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: s.bg, color: s.color }}>
-      {role}
-    </span>
-  );
-}
+const roles = ['Admin', 'Manager', 'Staff', 'Read-only'];
 
-export default function UsersPage() {
-  const { user: currentUser } = useAuth();
-  const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const [form, setForm] = useState({ name: "", email: "", password: "", role: "STAFF" });
+const roleStyle: Record<string, { color: string; bg: string }> = {
+  Admin: { color: '#000080', bg: '#E8F0FF' },
+  Manager: { color: '#6D8196', bg: '#EEF5FF' },
+  Staff: { color: '#4A7B5F', bg: '#EEF5F1' },
+  'Read-only': { color: '#8AAFC8', bg: '#F0F5FF' },
+};
 
-  const fetchUsers = () => {
-    fetch("/api/users")
-      .then((r) => r.json())
-      .then((d) => { setUsers(d.data || []); setLoading(false); });
-  };
+const permissions: Record<string, string[]> = {
+  Admin: ['Dashboard', 'Orders', 'Products', 'Inventory', 'Customers', 'Users', 'Integrations', 'SQL Console'],
+  Manager: ['Dashboard', 'Orders', 'Products', 'Inventory', 'Customers', 'Integrations'],
+  Staff: ['Dashboard', 'Orders', 'Products', 'Inventory'],
+  'Read-only': ['Dashboard'],
+};
 
-  useEffect(() => { fetchUsers(); }, []);
-
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaving(true);
-    setError("");
-    try {
-      const res = await fetch("/api/users", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
-      const data = await res.json();
-      if (!data.success) { setError(data.error || "Failed to create user"); return; }
-      setShowModal(false);
-      setForm({ name: "", email: "", password: "", role: "STAFF" });
-      fetchUsers();
-    } catch { setError("Network error"); }
-    finally { setSaving(false); }
-  };
-
-  const handleRoleChange = async (userId: string, role: string) => {
-    await fetch("/api/users", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId, role }),
-    });
-    fetchUsers();
-  };
-
-  const handleDelete = async (userId: string) => {
-    if (!confirm("Remove this user from your organization?")) return;
-    await fetch(`/api/users?userId=${userId}`, { method: "DELETE" });
-    fetchUsers();
-  };
-
-  const isAdmin = currentUser?.role === "ADMIN" || currentUser?.role === "SUPER_ADMIN";
+export default function Users() {
+  const [selectedRole, setSelectedRole] = useState<string | null>(null);
 
   return (
-    <div className="p-6">
+    <div className="p-6" style={{ fontFamily: "'IBM Plex Sans', sans-serif" }}>
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-end justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold" style={{ color: "#0f172a" }}>Team Members</h1>
-          <p className="text-sm mt-1" style={{ color: "#64748b" }}>Manage users in your organization</p>
+          <p className="text-[9px] tracking-[0.25em] uppercase" style={{ color: '#6D8196' }}>Access Control</p>
+          <h1 className="text-xl mt-0.5" style={{ letterSpacing: '-0.01em', color: '#000080' }}>
+            Users
+          </h1>
         </div>
-        {isAdmin && (
-          <button
-            onClick={() => setShowModal(true)}
-            className="erp-btn erp-btn-primary"
-          >
-            + Invite User
-          </button>
-        )}
+        <button
+          className="flex items-center gap-1.5 text-white text-[10px] tracking-[0.1em] uppercase px-4 py-2"
+          style={{ background: '#000080' }}
+        >
+          <UserPlus size={11} />
+          Invite User
+        </button>
       </div>
 
-      {/* Table */}
-      <div className="erp-card p-0 overflow-hidden">
-        {loading ? (
-          <div className="p-8 text-center" style={{ color: "#64748b" }}>Loading...</div>
-        ) : users.length === 0 ? (
-          <div className="p-8 text-center" style={{ color: "#64748b" }}>No users found. Invite your first team member.</div>
-        ) : (
-          <table className="w-full">
-            <thead>
-              <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
-                {["Name", "Email", "Role", "Joined", isAdmin ? "Actions" : ""].map((h) => (
-                  <th key={h} className="text-left px-6 py-3 text-xs font-semibold uppercase tracking-wider" style={{ color: "#64748b" }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {users.map((u) => (
-                <tr key={u.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium" style={{ background: "#2563eb" }}>
-                        {(u.name || u.email).charAt(0).toUpperCase()}
-                      </div>
-                      <span className="font-medium text-sm" style={{ color: "#0f172a" }}>{u.name || "—"}</span>
-                      {u.id === currentUser?.id && <span className="text-xs" style={{ color: "#94a3b8" }}>(you)</span>}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-sm" style={{ color: "#475569" }}>{u.email}</td>
-                  <td className="px-6 py-4">
-                    {isAdmin && u.id !== currentUser?.id ? (
-                      <select
-                        value={u.role}
-                        onChange={(e) => handleRoleChange(u.id, e.target.value)}
-                        className="text-xs rounded px-2 py-1 border"
-                        style={{ borderColor: "#e2e8f0", color: "#374151" }}
-                      >
-                        {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
-                      </select>
-                    ) : (
-                      getRoleBadge(u.role)
-                    )}
-                  </td>
-                  <td className="px-6 py-4 text-sm" style={{ color: "#94a3b8" }}>
-                    {new Date(u.createdAt).toLocaleDateString()}
-                  </td>
-                  {isAdmin && (
-                    <td className="px-6 py-4">
-                      {u.id !== currentUser?.id && (
-                        <button
-                          onClick={() => handleDelete(u.id)}
-                          className="text-xs px-3 py-1 rounded"
-                          style={{ background: "#fef2f2", color: "#dc2626" }}
-                        >
-                          Remove
-                        </button>
-                      )}
-                    </td>
-                  )}
+      <div className="grid grid-cols-3 gap-4">
+        {/* Users table */}
+        <div className="col-span-2">
+          <div className="bg-white" style={{ border: '1px solid #C8DFF0' }}>
+            <table className="w-full">
+              <thead>
+                <tr style={{ borderBottom: '1px solid #EEF5FF' }}>
+                  {['User', 'Email', 'Role', 'Last Active', 'Status'].map((h) => (
+                    <th
+                      key={h}
+                      className="text-left px-5 py-3 font-normal text-[9px] tracking-[0.15em] uppercase"
+                      style={{ color: '#6D8196' }}
+                    >
+                      {h}
+                    </th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-
-      {/* Invite Modal */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.5)" }}>
-          <div className="erp-card w-full max-w-md">
-            <h2 className="text-lg font-semibold mb-4" style={{ color: "#0f172a" }}>Invite Team Member</h2>
-
-            {error && (
-              <div className="mb-4 p-3 rounded-lg text-sm" style={{ background: "#fef2f2", color: "#dc2626" }}>{error}</div>
-            )}
-
-            <form onSubmit={handleCreate} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-1" style={{ color: "#374151" }}>Full Name</label>
-                <input
-                  type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  className="erp-input" placeholder="John Doe" required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1" style={{ color: "#374151" }}>Email Address</label>
-                <input
-                  type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  className="erp-input" placeholder="john@company.com" required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1" style={{ color: "#374151" }}>Temporary Password</label>
-                <input
-                  type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })}
-                  className="erp-input" placeholder="Min. 8 characters" required minLength={8}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1" style={{ color: "#374151" }}>Role</label>
-                <select
-                  value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}
-                  className="erp-input"
-                >
-                  {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
-                </select>
-              </div>
-              <div className="flex gap-3 pt-2">
-                <button type="submit" disabled={saving} className="erp-btn erp-btn-primary flex-1 justify-center" style={{ opacity: saving ? 0.7 : 1 }}>
-                  {saving ? "Creating..." : "Create User"}
-                </button>
-                <button type="button" onClick={() => { setShowModal(false); setError(""); }} className="erp-btn flex-1 justify-center" style={{ background: "#f1f5f9", color: "#374151" }}>
-                  Cancel
-                </button>
-              </div>
-            </form>
+              </thead>
+              <tbody>
+                {users.map((user) => (
+                  <tr
+                    key={user.id}
+                    className="transition-colors"
+                    style={{ borderBottom: '1px solid #F5F9FF' }}
+                  >
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-2.5">
+                        <div
+                          className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] flex-shrink-0"
+                          style={{ background: '#6D8196' }}
+                        >
+                          {user.name.charAt(0)}
+                        </div>
+                        <span className="text-xs" style={{ color: '#1A2540' }}>{user.name}</span>
+                      </div>
+                    </td>
+                    <td className="px-5 py-3.5 text-[10px]" style={{ color: '#4A6080' }}>{user.email}</td>
+                    <td className="px-5 py-3.5">
+                      <button
+                        onClick={() => setSelectedRole(user.role)}
+                        className="px-2 py-0.5 text-[9px] tracking-[0.1em] uppercase hover:opacity-80 transition-opacity"
+                        style={{
+                          color: roleStyle[user.role].color,
+                          background: roleStyle[user.role].bg,
+                        }}
+                      >
+                        {user.role}
+                      </button>
+                    </td>
+                    <td
+                      className="px-5 py-3.5 text-[10px]"
+                      style={{ fontFamily: "'IBM Plex Mono', monospace", color: '#6D8196' }}
+                    >
+                      {user.lastActive}
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          className="w-1.5 h-1.5 rounded-full"
+                          style={{ background: user.status === 'Active' ? '#ADD8E6' : '#C8DFF0' }}
+                        />
+                        <span
+                          className="text-[10px]"
+                          style={{ color: user.status === 'Active' ? '#6D8196' : '#8AAFC8' }}
+                        >
+                          {user.status}
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
-      )}
+
+        {/* Role permissions panel */}
+        <div className="space-y-3">
+          <div className="bg-white p-4" style={{ border: '1px solid #C8DFF0' }}>
+            <div className="flex items-center gap-2 mb-4">
+              <Shield size={12} style={{ color: '#6D8196' }} />
+              <p className="text-[9px] tracking-[0.2em] uppercase" style={{ color: '#6D8196' }}>Role Permissions</p>
+            </div>
+            <div className="space-y-1.5 mb-4">
+              {roles.map((role) => (
+                <button
+                  key={role}
+                  onClick={() => setSelectedRole(selectedRole === role ? null : role)}
+                  className="w-full flex items-center justify-between px-3 py-2 text-left transition-colors"
+                  style={{
+                    background: selectedRole === role ? '#000080' : '#F0F8FF',
+                    color: selectedRole === role ? '#FFFFFF' : '#6D8196',
+                  }}
+                >
+                  <span className="text-[11px] tracking-wide">{role}</span>
+                  <span
+                    className="text-[10px]"
+                    style={{ fontFamily: "'IBM Plex Mono', monospace" }}
+                  >
+                    {permissions[role].length}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {selectedRole && (
+              <div>
+                <p className="text-[9px] tracking-[0.2em] uppercase mb-2" style={{ color: '#6D8196' }}>
+                  {selectedRole} Access
+                </p>
+                <div className="space-y-1.5">
+                  {['Dashboard', 'Orders', 'Products', 'Inventory', 'Customers', 'Users', 'Integrations', 'SQL Console'].map((module) => {
+                    const hasAccess = permissions[selectedRole].includes(module);
+                    return (
+                      <div
+                        key={module}
+                        className="flex items-center justify-between py-1.5"
+                        style={{ borderBottom: '1px solid #EEF5FF' }}
+                      >
+                        <span className="text-[11px]" style={{ color: hasAccess ? '#000080' : '#C8DFF0' }}>
+                          {module}
+                        </span>
+                        {hasAccess ? (
+                          <Eye size={11} style={{ color: '#ADD8E6' }} />
+                        ) : (
+                          <EyeOff size={11} style={{ color: '#E8F4FF' }} />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

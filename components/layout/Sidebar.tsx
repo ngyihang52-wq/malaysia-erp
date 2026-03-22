@@ -1,131 +1,198 @@
 "use client";
+
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import {
+  LayoutDashboard,
+  Terminal,
+  ShoppingBag,
+  Box,
+  Layers3,
+  Users,
+  User,
+  Plug,
+  ShoppingCart,
+  Music,
+  Package,
+  Globe,
+  LogOut,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
-const navItems = [
-  {
-    label: "Main",
-    items: [
-      { href: "/dashboard", icon: "⊞", label: "Dashboard", adminOnly: false },
-      { href: "/sql-console", icon: "🖥️", label: "SQL Console", adminOnly: false },
-      { href: "/orders", icon: "📦", label: "Orders", adminOnly: false },
-      { href: "/products", icon: "🏷️", label: "Products", adminOnly: false },
-      { href: "/inventory", icon: "🏭", label: "Inventory", adminOnly: false },
-      { href: "/customers", icon: "👥", label: "Customers", adminOnly: false },
-      { href: "/users", icon: "👤", label: "Users", adminOnly: true },
-    ],
-  },
-  {
-    label: "Channels",
-    items: [
-      { href: "/integrations", icon: "🔗", label: "Integrations", adminOnly: false },
-      { href: "/integrations/shopify", icon: "🟢", label: "Shopify", adminOnly: false },
-      { href: "/integrations/tiktok", icon: "⚫", label: "TikTok Shop", adminOnly: false },
-      { href: "/integrations/shopee", icon: "🟠", label: "Shopee", adminOnly: false },
-      { href: "/integrations/lazada", icon: "🔵", label: "Lazada", adminOnly: false },
-      { href: "/integrations/amazon", icon: "🟡", label: "Amazon MY", adminOnly: false },
-    ],
-  },
-  {
-    label: "Analytics",
-    items: [
-      { href: "/reports", icon: "📊", label: "Reports", adminOnly: false },
-    ],
-  },
+interface MainNavItem {
+  label: string;
+  icon: LucideIcon;
+  href: string;
+  end: boolean;
+  adminOnly?: boolean;
+}
+
+interface ChannelNavItem {
+  label: string;
+  icon: LucideIcon;
+  href: string;
+  status: string | null;
+}
+
+const mainNav: MainNavItem[] = [
+  { label: "Dashboard", icon: LayoutDashboard, href: "/dashboard", end: true },
+  { label: "SQL Console", icon: Terminal, href: "/sql-console", end: false },
+  { label: "Orders", icon: ShoppingBag, href: "/orders", end: false },
+  { label: "Products", icon: Box, href: "/products", end: false },
+  { label: "Inventory", icon: Layers3, href: "/inventory", end: false },
+  { label: "Customers", icon: Users, href: "/customers", end: false },
+  { label: "Users", icon: User, href: "/users", end: false, adminOnly: true },
 ];
 
-function getRoleColor(role: string): string {
-  switch (role) {
-    case "ADMIN": return "#dc2626";
-    case "MANAGER": return "#2563eb";
-    case "STAFF": return "#16a34a";
-    default: return "#6b7280";
-  }
-}
+const channelNav: ChannelNavItem[] = [
+  { label: "Integrations", icon: Plug, href: "/integrations", status: null },
+  { label: "Shopify", icon: ShoppingCart, href: "/integrations/shopify", status: "connected" },
+  { label: "TikTok Shop", icon: Music, href: "/integrations/tiktok", status: "disconnected" },
+  { label: "Shopee", icon: ShoppingBag, href: "/integrations/shopee", status: "disconnected" },
+  { label: "Lazada", icon: Package, href: "/integrations/lazada", status: "disconnected" },
+  { label: "Amazon", icon: Globe, href: "/integrations/amazon", status: "disconnected" },
+];
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
 
-  const isActive = (href: string) => {
-    if (href === "/dashboard") return pathname === "/dashboard";
-    return pathname.startsWith(href);
+  const isActive = (href: string, end?: boolean) => {
+    if (end) return pathname === href;
+    return pathname === href || pathname.startsWith(href + "/");
   };
 
   return (
-    <aside className="sidebar">
+    <aside
+      className="w-[220px] flex-shrink-0 flex flex-col h-full overflow-hidden"
+      style={{ background: "#000080" }}
+    >
       {/* Logo */}
-      <div className="p-6 border-b" style={{ borderColor: "#1e293b" }}>
+      <div className="px-5 py-5 flex-shrink-0" style={{ borderBottom: "1px solid #1A1AA8" }}>
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg flex items-center justify-center text-white font-bold" style={{ background: "#2563eb" }}>
+          <div
+            className="w-8 h-8 flex items-center justify-center text-white flex-shrink-0"
+            style={{ background: "#6D8196", fontSize: 9, letterSpacing: "0.15em", fontWeight: 500 }}
+          >
             ERP
           </div>
-          <div>
-            <div className="text-white font-semibold text-sm">Malaysia ERP</div>
-            <div className="text-xs" style={{ color: "#475569" }}>Multi-Channel Commerce</div>
+          <div className="min-w-0">
+            <div className="text-white text-xs tracking-wide truncate">NEXA Commerce</div>
+            <div className="text-[10px] tracking-wider truncate" style={{ color: "#5A7AB8" }}>
+              Multi-Channel
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto p-4">
-        {navItems.map((section) => (
-          <div key={section.label} className="mb-6">
-            <div className="px-3 mb-2 text-xs font-semibold uppercase tracking-wider" style={{ color: "#475569" }}>
-              {section.label}
-            </div>
-            <div className="space-y-0.5">
-              {section.items
-                .filter((item) => !item.adminOnly || user?.role === "ADMIN" || user?.role === "SUPER_ADMIN")
-                .map((item) => (
+      {/* Nav */}
+      <div className="flex-1 overflow-y-auto py-4 px-2">
+        {/* Main section */}
+        <div className="mb-4">
+          <p
+            className="text-[9px] tracking-[0.25em] uppercase px-3 mb-1.5"
+            style={{ color: "#3A5A9A" }}
+          >
+            Main
+          </p>
+          <nav>
+            {mainNav
+              .filter(
+                (item) =>
+                  !item.adminOnly ||
+                  user?.role === "ADMIN" ||
+                  user?.role === "SUPER_ADMIN"
+              )
+              .map((item) => {
+                const active = isActive(item.href, item.end);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`flex items-center gap-2.5 px-3 py-2 text-[11px] tracking-wide transition-colors mb-0.5 ${
+                      active ? "text-white border-l-2 pl-[10px]" : "hover:text-[#ADD8E6]"
+                    }`}
+                    style={{
+                      background: active ? "#0A0AB0" : "transparent",
+                      borderLeftColor: active ? "#ADD8E6" : "transparent",
+                      color: active ? "#FFFFFF" : "#7A9DC0",
+                    }}
+                  >
+                    <item.icon size={13} />
+                    <span>{item.label}</span>
+                  </Link>
+                );
+              })}
+          </nav>
+        </div>
+
+        {/* Channels section */}
+        <div>
+          <p
+            className="text-[9px] tracking-[0.25em] uppercase px-3 mb-1.5"
+            style={{ color: "#3A5A9A" }}
+          >
+            Channels
+          </p>
+          <nav>
+            {channelNav.map((item) => {
+              const active = isActive(item.href);
+              return (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-sm"
+                  className={`flex items-center gap-2.5 px-3 py-2 text-[11px] tracking-wide transition-colors mb-0.5 ${
+                    active ? "border-l-2 pl-[10px]" : ""
+                  }`}
                   style={{
-                    color: isActive(item.href) ? "#ffffff" : "#94a3b8",
-                    background: isActive(item.href) ? "#1e3a5f" : "transparent",
-                    fontWeight: isActive(item.href) ? "500" : "400",
+                    background: active ? "#0A0AB0" : "transparent",
+                    borderLeftColor: active ? "#ADD8E6" : "transparent",
+                    color: active ? "#FFFFFF" : "#7A9DC0",
                   }}
                 >
-                  <span className="text-base">{item.icon}</span>
-                  {item.label}
+                  <item.icon size={13} />
+                  <span className="flex-1">{item.label}</span>
+                  {item.status && (
+                    <span
+                      className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                      style={{
+                        background: item.status === "connected" ? "#ADD8E6" : "#2A3A7A",
+                      }}
+                    />
+                  )}
                 </Link>
-              ))}
-            </div>
-          </div>
-        ))}
-      </nav>
+              );
+            })}
+          </nav>
+        </div>
+      </div>
 
-      {/* User */}
-      <div className="p-4 border-t" style={{ borderColor: "#1e293b" }}>
-        <div className="flex items-center gap-3">
+      {/* User + Logout */}
+      <div className="px-2 py-3 flex-shrink-0" style={{ borderTop: "1px solid #1A1AA8" }}>
+        <div className="flex items-center gap-2.5 px-3 py-2">
           <div
-            className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium flex-shrink-0"
-            style={{ background: getRoleColor(user?.role || "") }}
+            className="w-6 h-6 rounded-full flex items-center justify-center text-white flex-shrink-0"
+            style={{ background: "#6D8196", fontSize: 10 }}
           >
-            {user?.name?.charAt(0) || "?"}
+            {user?.name?.charAt(0) ?? "U"}
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-sm font-medium text-white truncate">
-              {user?.name || "Loading..."}
+            <div className="text-[11px] truncate" style={{ color: "#ADD8E6" }}>
+              {user?.name ?? "Loading..."}
             </div>
-            <div className="text-xs truncate" style={{ color: "#475569" }}>
-              {user?.email || ""}
+            <div className="text-[9px] tracking-[0.15em]" style={{ color: "#3A5A9A" }}>
+              {user?.role ?? ""}
             </div>
           </div>
-          {user?.role && (
-            <span
-              className="text-xs px-2 py-0.5 rounded-full flex-shrink-0"
-              style={{
-                background: user.role === "ADMIN" ? "rgba(220,38,38,0.15)" : user.role === "MANAGER" ? "rgba(37,99,235,0.15)" : "rgba(22,163,74,0.15)",
-                color: user.role === "ADMIN" ? "#fca5a5" : user.role === "MANAGER" ? "#93c5fd" : "#86efac",
-              }}
-            >
-              {user.role}
-            </span>
-          )}
+          <button
+            onClick={logout}
+            title="Sign out"
+            className="cursor-pointer transition-colors flex-shrink-0 hover:opacity-80"
+            style={{ color: "#3A5A9A" }}
+          >
+            <LogOut size={12} />
+          </button>
         </div>
       </div>
     </aside>
