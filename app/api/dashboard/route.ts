@@ -15,14 +15,11 @@ export async function GET(request: NextRequest) {
 
   try {
     const [
-      orderAgg, productCount, lowStockCount, customerCount,
+      orderAgg, productCount, customerCount,
       recentOrders, platformStats, integrations,
     ] = await Promise.all([
       prisma.order.aggregate({ where: { orgId }, _sum: { total: true }, _count: true }),
       prisma.product.count({ where: { isActive: true, orgId } }),
-      prisma.inventoryItem.count({
-        where: { warehouse: { orgId }, quantity: { lte: prisma.inventoryItem.fields.reorderPoint } },
-      }).catch(() => 0),
       prisma.customer.count({ where: { orgId } }),
       prisma.order.findMany({
         where: { orgId },
@@ -37,13 +34,23 @@ export async function GET(request: NextRequest) {
         by: ["integrationId"],
         where: { orgId },
         _sum: { total: true },
-        _count: true,
-      }),
+        _count: { _all: true },
+      }).catch(() => []),
       prisma.platformIntegration.findMany({
         where: { isActive: true, orgId },
         select: { id: true, platform: true },
       }),
     ]);
+
+    // Count low-stock items using raw SQL (avoids column-reference limitations)
+    const lowStockResult = await prisma.$queryRaw<[{ count: bigint }]>`
+      SELECT COUNT(*)::bigint AS count
+      FROM "InventoryItem" ii
+      JOIN "Warehouse" w ON ii."warehouseId" = w.id
+      WHERE w."orgId" = ${orgId}
+        AND ii.quantity <= ii."reorderPoint"
+    `.catch(() => [{ count: BigInt(0) }]);
+    const lowStockCount = Number((lowStockResult as [{ count: bigint }])[0]?.count ?? 0);
 
     const integrationMap = new Map(integrations.map((i) => [i.id, i.platform]));
     const platformSummary = ["SHOPIFY", "TIKTOK", "SHOPEE", "LAZADA", "AMAZON"].map((p) => {
@@ -51,7 +58,7 @@ export async function GET(request: NextRequest) {
       const isConnected = integrations.some((i) => i.platform === p);
       return {
         name: p,
-        orders: stats?._count || 0,
+        orders: stats?._count?._all || 0,
         revenue: Number(stats?._sum?.total || 0),
         status: isConnected ? "active" : "disconnected",
       };
