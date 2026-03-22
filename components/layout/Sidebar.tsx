@@ -47,11 +47,11 @@ const mainNav: MainNavItem[] = [
 
 const channelNav: ChannelNavItem[] = [
   { label: "Integrations", icon: Plug, href: "/integrations", status: null },
-  { label: "Shopify", icon: ShoppingCart, href: "/integrations/shopify", status: "connected" },
-  { label: "TikTok Shop", icon: Music, href: "/integrations/tiktok", status: "disconnected" },
-  { label: "Shopee", icon: ShoppingBag, href: "/integrations/shopee", status: "disconnected" },
-  { label: "Lazada", icon: Package, href: "/integrations/lazada", status: "disconnected" },
-  { label: "Amazon", icon: Globe, href: "/integrations/amazon", status: "disconnected" },
+  { label: "Shopify", icon: ShoppingCart, href: "/channels/shopify", status: null },
+  { label: "TikTok Shop", icon: Music, href: "/channels/tiktok", status: null },
+  { label: "Shopee", icon: ShoppingBag, href: "/channels/shopee", status: null },
+  { label: "Lazada", icon: Package, href: "/channels/lazada", status: null },
+  { label: "Amazon", icon: Globe, href: "/channels/amazon", status: null },
 ];
 
 export default function Sidebar() {

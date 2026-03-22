@@ -66,12 +66,12 @@ export default function SQLConsole() {
       setSchemaLoading(true);
       setSchemaError(null);
       try {
-        const res = await fetch('/api/sql/schema');
+        const res = await fetch('/api/sql/schema', { credentials: 'include' });
         const json = await res.json();
         if (!res.ok || !json.success) {
           throw new Error(json.error || json.message || 'Failed to load schema');
         }
-        setSchema(json.data.tables);
+        setSchema(json.data.schema || json.data.tables || []);
       } catch (err: any) {
         setSchemaError(err.message || 'Failed to load schema');
       } finally {
@@ -91,6 +91,7 @@ export default function SQLConsole() {
       const res = await fetch('/api/sql', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ query }),
       });
       const json = await res.json();
