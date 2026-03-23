@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
     const integrations = await prisma.platformIntegration.findMany({
       where: {
         isActive: true,
-        platform: { in: SUPPORTED_PLATFORMS },
+        platform: { in: [...SUPPORTED_PLATFORMS] },
       },
       select: {
         id: true,
