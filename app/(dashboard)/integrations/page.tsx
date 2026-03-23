@@ -236,80 +236,60 @@ export default function Integrations() {
         {channels.map((ch) => (
           <div
             key={ch.id}
-            className="bg-white p-5 flex items-center justify-between"
+            className="bg-white px-5 py-4 flex items-center gap-4"
             style={{ border: '1px solid #C8DFF0' }}
           >
-            {/* Left */}
-            <div className="flex items-center gap-4">
-              <div
-                className="w-1 h-12 flex-shrink-0"
-                style={{ background: channelAccent[ch.id] }}
-              />
-              <div>
-                <div className="flex items-center gap-2.5 mb-0.5">
-                  <h3 className="text-sm tracking-wide" style={{ color: '#000080' }}>{ch.name}</h3>
-                  {ch.status === 'connected' ? (
-                    <CheckCircle2 size={12} style={{ color: '#ADD8E6' }} />
-                  ) : (
-                    <XCircle size={12} style={{ color: '#C8DFF0' }} />
-                  )}
-                  <span
-                    className="text-[9px] tracking-[0.1em] uppercase px-2 py-0.5"
-                    style={{
-                      color: ch.status === 'connected' ? '#ADD8E6' : '#6D8196',
-                      background: ch.status === 'connected' ? '#E8F4FF' : '#F0F5FF',
-                    }}
-                  >
-                    {ch.status}
-                  </span>
-                </div>
-                <p className="text-[10px]" style={{ color: '#6D8196' }}>{ch.description}</p>
-                {ch.store !== '---' && (
-                  <p className="text-[10px] mt-0.5" style={{ fontFamily: "'IBM Plex Mono', monospace", color: '#ADD8E6' }}>
-                    {ch.store}
-                  </p>
-                )}
+            {/* Accent bar */}
+            <div className="w-1 h-10 flex-shrink-0" style={{ background: channelAccent[ch.id] }} />
+
+            {/* Name + status — fixed width */}
+            <div style={{ width: '180px', flexShrink: 0 }}>
+              <div className="flex items-center gap-1.5 mb-1" style={{ flexWrap: 'nowrap' }}>
+                <h3 className="text-sm tracking-wide truncate" style={{ color: '#000080' }}>{ch.name}</h3>
+                {ch.status === 'connected'
+                  ? <CheckCircle2 size={11} className="flex-shrink-0" style={{ color: '#ADD8E6' }} />
+                  : <XCircle size={11} className="flex-shrink-0" style={{ color: '#C8DFF0' }} />}
               </div>
+              <span
+                className="inline-block text-[8px] tracking-[0.12em] uppercase px-1.5 py-0.5"
+                style={{
+                  color: ch.status === 'connected' ? '#ADD8E6' : '#6D8196',
+                  background: ch.status === 'connected' ? '#E8F4FF' : '#F0F5FF',
+                }}
+              >
+                {ch.status === 'connected' ? ch.store : ch.description}
+              </span>
             </div>
 
-            {/* Stats */}
-            <div className="flex items-center gap-8">
+            {/* Stats — flex-1 space, equal-width columns */}
+            <div className="flex-1 grid gap-2" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
               <div className="text-center">
-                <p className="text-[9px] tracking-[0.1em] uppercase" style={{ color: '#6D8196' }}>Orders</p>
-                <p
-                  className="text-lg"
-                  style={{ fontFamily: "'IBM Plex Mono', monospace", color: '#000080' }}
-                >
+                <p className="text-[9px] tracking-[0.1em] uppercase mb-0.5" style={{ color: '#6D8196' }}>Orders</p>
+                <p className="text-base" style={{ fontFamily: "'IBM Plex Mono', monospace", color: '#000080' }}>
                   {ch.orders}
                 </p>
               </div>
               <div className="text-center">
-                <p className="text-[9px] tracking-[0.1em] uppercase" style={{ color: '#6D8196' }}>Revenue</p>
-                <p
-                  className="text-lg"
-                  style={{ fontFamily: "'IBM Plex Mono', monospace", color: '#000080' }}
-                >
+                <p className="text-[9px] tracking-[0.1em] uppercase mb-0.5" style={{ color: '#6D8196' }}>Revenue</p>
+                <p className="text-base" style={{ fontFamily: "'IBM Plex Mono', monospace", color: '#000080' }}>
                   RM {ch.revenue.toLocaleString()}
                 </p>
               </div>
               <div className="text-center">
-                <p className="text-[9px] tracking-[0.1em] uppercase" style={{ color: '#6D8196' }}>Last Sync</p>
-                <p
-                  className="text-[10px]"
-                  style={{ fontFamily: "'IBM Plex Mono', monospace", color: '#4A6080' }}
-                >
+                <p className="text-[9px] tracking-[0.1em] uppercase mb-0.5" style={{ color: '#6D8196', whiteSpace: 'nowrap' }}>Last Sync</p>
+                <p className="text-[10px]" style={{ fontFamily: "'IBM Plex Mono', monospace", color: '#4A6080' }}>
                   {ch.lastSync}
                 </p>
               </div>
             </div>
 
-            {/* Actions */}
-            <div className="flex items-center gap-2">
+            {/* Actions — fixed, flush right */}
+            <div className="flex items-center gap-2 flex-shrink-0">
               {ch.status === 'connected' ? (
                 <>
                   <button
                     onClick={() => handleSync(ch.id)}
-                    className="flex items-center gap-1.5 bg-white text-[10px] tracking-[0.1em] uppercase px-3 py-2 transition-colors"
+                    className="flex items-center gap-1.5 bg-white text-[10px] tracking-[0.1em] uppercase px-3 py-2"
                     style={{ border: '1px solid #C8DFF0', color: '#6D8196' }}
                   >
                     <RefreshCw size={10} className={syncing === ch.id ? 'animate-spin' : ''} />
@@ -317,7 +297,7 @@ export default function Integrations() {
                   </button>
                   <Link
                     href={`/channels/${ch.id}`}
-                    className="flex items-center gap-1.5 bg-white text-[10px] tracking-[0.1em] uppercase px-3 py-2 transition-colors"
+                    className="flex items-center gap-1.5 bg-white text-[10px] tracking-[0.1em] uppercase px-3 py-2"
                     style={{ border: '1px solid #C8DFF0', color: '#6D8196' }}
                   >
                     <Settings size={10} />
