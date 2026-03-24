@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   LayoutDashboard,
-  Terminal,
+  BarChart3,
   ShoppingBag,
   Box,
   Layers3,
@@ -37,7 +37,7 @@ interface ChannelNavItem {
 
 const mainNav: MainNavItem[] = [
   { label: "Dashboard", icon: LayoutDashboard, href: "/dashboard", end: true },
-  { label: "SQL Console", icon: Terminal, href: "/sql-console", end: false },
+  { label: "Reports", icon: BarChart3, href: "/reports", end: false },
   { label: "Orders", icon: ShoppingBag, href: "/orders", end: false },
   { label: "Products", icon: Box, href: "/products", end: false },
   { label: "Inventory", icon: Layers3, href: "/inventory", end: false },

@@ -449,9 +449,9 @@ export async function GET(request: NextRequest) {
             running: 0,
           };
 
-          if (log.status === "SUCCESS" || log.status === "COMPLETED") {
+          if (log.status === "SUCCESS" || (log.status as string) === "COMPLETED") {
             entry.success++;
-          } else if (log.status === "FAILED" || log.status === "ERROR") {
+          } else if (log.status === "FAILED" || (log.status as string) === "ERROR") {
             entry.failed++;
           } else {
             entry.running++;
