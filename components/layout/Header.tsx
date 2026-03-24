@@ -6,12 +6,12 @@ import { RefreshCw, Bell, ChevronDown, Menu, X } from "lucide-react";
 
 const pageTitles: Record<string, string> = {
   "/dashboard": "Dashboard",
+  "/reports": "Reports",
   "/orders": "Orders",
   "/products": "Products",
   "/inventory": "Inventory",
   "/customers": "Customers",
   "/users": "Users",
-  "/sql-console": "SQL Console",
   "/integrations": "Integrations",
 };
 
@@ -57,8 +57,9 @@ export default function Header({ sidebarOpen, onToggleSidebar }: HeaderProps) {
         </div>
       </div>
 
-      <div className="flex items-center gap-3">
-        <div className="relative">
+      <div className="flex items-center gap-2 sm:gap-3">
+        {/* Date range — hidden on xs */}
+        <div className="relative hidden sm:block">
           <select
             value={dateRange}
             onChange={(e) => setDateRange(e.target.value)}
@@ -81,12 +82,13 @@ export default function Header({ sidebarOpen, onToggleSidebar }: HeaderProps) {
           />
         </div>
 
+        {/* Sync button — icon-only on mobile */}
         <button
-          className="flex items-center gap-2 text-white text-[10px] tracking-[0.15em] px-4 py-1.5 hover:opacity-90 transition-opacity"
+          className="flex items-center gap-2 text-white text-[10px] tracking-[0.15em] px-3 sm:px-4 py-1.5 hover:opacity-90 transition-opacity"
           style={{ background: "#000080" }}
         >
           <RefreshCw size={11} />
-          SYNC ALL CHANNELS
+          <span className="hidden sm:inline">SYNC ALL</span>
         </button>
 
         <button
