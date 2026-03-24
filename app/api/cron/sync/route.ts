@@ -59,12 +59,12 @@ export async function GET(request: NextRequest) {
 
     // Sync each integration independently — one failure won't stop the others
     for (const integration of integrations) {
-      const result = {
+      const result: (typeof results)[number] = {
         integrationId: integration.id,
         platform: integration.platform,
         orgId: integration.orgId,
-        products: { status: "ok" as "ok" | "error", count: 0 },
-        orders: { status: "ok" as "ok" | "error", count: 0 },
+        products: { status: "ok", count: 0 },
+        orders: { status: "ok", count: 0 },
       };
 
       // Create sync log entries
