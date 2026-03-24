@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, BarChart, Bar, Cell, PieChart, Pie,
@@ -55,24 +55,21 @@ const CHANNEL_ACCENTS: Record<string, string> = {
 function useAnalytic<T>(metric: string, params: string = "", enabled: boolean = true) {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(false);
-  const [fetched, setFetched] = useState(false);
 
-  const fetchData = useCallback(async () => {
-    if (!enabled || fetched) return;
+  useEffect(() => {
+    if (!enabled) return;
+    const controller = new AbortController();
     setLoading(true);
-    try {
-      const res = await fetch(`/api/analytics?metric=${metric}${params}`, { credentials: "include" });
-      if (res.ok) {
-        const json = await res.json();
-        if (json.success) setData(json.data);
-      }
-    } catch { /* silent */ } finally {
-      setLoading(false);
-      setFetched(true);
-    }
-  }, [metric, params, enabled, fetched]);
-
-  useEffect(() => { fetchData(); }, [fetchData]);
+    fetch(`/api/analytics?metric=${metric}${params}`, {
+      credentials: "include",
+      signal: controller.signal,
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => { if (json?.success) setData(json.data); })
+      .catch(() => { /* silent — aborted or network error */ })
+      .finally(() => setLoading(false));
+    return () => controller.abort();
+  }, [metric, params, enabled]);
 
   return { data, loading };
 }
