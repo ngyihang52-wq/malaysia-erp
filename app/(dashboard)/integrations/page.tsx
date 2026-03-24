@@ -262,22 +262,22 @@ export default function Integrations() {
             </div>
 
             {/* Stats — flex-1 space, equal-width columns */}
-            <div className="flex-1 grid gap-2" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
-              <div className="text-center">
+            <div className="flex-1 grid gap-2" style={{ gridTemplateColumns: '120px 140px 1fr' }}>
+              <div className="text-center items-center">
                 <p className="text-[9px] tracking-[0.1em] uppercase mb-0.5" style={{ color: '#6D8196' }}>Orders</p>
                 <p className="text-base" style={{ fontFamily: "'IBM Plex Mono', monospace", color: '#000080' }}>
                   {ch.orders}
                 </p>
               </div>
-              <div className="text-center">
+              <div className="text-center items-center">
                 <p className="text-[9px] tracking-[0.1em] uppercase mb-0.5" style={{ color: '#6D8196' }}>Revenue</p>
                 <p className="text-base" style={{ fontFamily: "'IBM Plex Mono', monospace", color: '#000080' }}>
                   RM {ch.revenue.toLocaleString()}
                 </p>
               </div>
-              <div className="text-center">
+              <div className="text-center items-center">
                 <p className="text-[9px] tracking-[0.1em] uppercase mb-0.5" style={{ color: '#6D8196', whiteSpace: 'nowrap' }}>Last Sync</p>
-                <p className="text-[10px]" style={{ fontFamily: "'IBM Plex Mono', monospace", color: '#4A6080' }}>
+                <p className="text-sm" style={{ fontFamily: "'IBM Plex Mono', monospace", color: '#4A6080' }}>
                   {ch.lastSync}
                 </p>
               </div>
