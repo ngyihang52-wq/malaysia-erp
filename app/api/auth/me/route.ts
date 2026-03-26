@@ -15,7 +15,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: false, error: "Invalid token" }, { status: 401 });
   }
 
-  const user = await prisma.user.findUnique({ where: { id: payload.userId } });
+  const user = await prisma.user.findUnique({
+    where: { id: payload.userId },
+    include: { org: { select: { plan: true, trialEndsAt: true } } },
+  });
   if (!user) {
     return NextResponse.json({ success: false, error: "User not found" }, { status: 401 });
   }
@@ -28,6 +31,8 @@ export async function GET(request: NextRequest) {
       role: user.role,
       name: user.name || user.email.split("@")[0],
       orgId: user.orgId,
+      plan: user.org.plan,
+      trialEndsAt: user.org.trialEndsAt?.toISOString() ?? null,
     },
   });
 }

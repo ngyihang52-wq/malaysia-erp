@@ -38,9 +38,16 @@ export async function POST(request: NextRequest) {
 
     const hashed = await hashPassword(password);
 
+    const trialEndsAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000); // 14 days
+
     const { user } = await prisma.$transaction(async (tx) => {
       const org = await tx.organization.create({
-        data: { name: orgName, slug: generateSlug(orgName) },
+        data: {
+          name: orgName,
+          slug: generateSlug(orgName),
+          plan: "trial",
+          trialEndsAt,
+        },
       });
       const user = await tx.user.create({
         data: {

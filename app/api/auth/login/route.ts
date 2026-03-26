@@ -31,6 +31,22 @@ export async function POST(request: NextRequest) {
       return apiError("Invalid email or password", 401);
     }
 
+    // Block login if trial has expired
+    if (
+      user.org.plan === "trial" &&
+      user.org.trialEndsAt &&
+      user.org.trialEndsAt < new Date()
+    ) {
+      return Response.json(
+        {
+          success: false,
+          error: "Your 14-day free trial has ended. Please contact support to continue.",
+          trialExpired: true,
+        },
+        { status: 403 }
+      );
+    }
+
     // Block login if email is not verified
     if (!user.emailVerified) {
       return Response.json(

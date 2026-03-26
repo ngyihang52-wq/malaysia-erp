@@ -3,6 +3,37 @@
 import { useState, useEffect } from "react";
 import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
+import { useAuth } from "@/contexts/AuthContext";
+import { AlertTriangle } from "lucide-react";
+
+function TrialBanner() {
+  const { user } = useAuth();
+  if (!user?.trialEndsAt || user.plan !== "trial") return null;
+
+  const msLeft = new Date(user.trialEndsAt).getTime() - Date.now();
+  const daysLeft = Math.ceil(msLeft / (1000 * 60 * 60 * 24));
+  if (daysLeft <= 0) return null;
+
+  const urgent = daysLeft <= 3;
+
+  return (
+    <div
+      className="flex items-center justify-center gap-2 px-4 py-2 text-xs text-center"
+      style={{
+        background: urgent ? "#B05050" : "#C5960C",
+        color: "#fff",
+        fontFamily: "'IBM Plex Sans', sans-serif",
+      }}
+    >
+      <AlertTriangle size={12} />
+      <span>
+        {urgent
+          ? `⚠ Trial ends in ${daysLeft} day${daysLeft !== 1 ? "s" : ""} — contact us to upgrade`
+          : `Free trial · ${daysLeft} day${daysLeft !== 1 ? "s" : ""} remaining`}
+      </span>
+    </div>
+  );
+}
 
 export default function DashboardShell({ children }: { children: React.ReactNode }) {
   // Default closed; open on desktop after hydration
@@ -54,6 +85,7 @@ export default function DashboardShell({ children }: { children: React.ReactNode
 
       {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+        <TrialBanner />
         <Header
           sidebarOpen={sidebarOpen}
           onToggleSidebar={() => setSidebarOpen((o) => !o)}

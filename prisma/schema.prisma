@@ -13,12 +13,14 @@ datasource db {
 // ============================================================
 
 model Organization {
-  id           String   @id @default(cuid())
+  id           String    @id @default(cuid())
   name         String
-  slug         String   @unique
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  slug         String    @unique
+  isActive     Boolean   @default(true)
+  plan         String    @default("trial")   // "trial" | "active" | "expired"
+  trialEndsAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
   users        User[]
   integrations PlatformIntegration[]
   products     Product[]

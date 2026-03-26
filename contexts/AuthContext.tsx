@@ -8,6 +8,8 @@ export interface AuthUser {
   email: string;
   role: string;
   orgId: string;
+  plan?: string;
+  trialEndsAt?: string | null;
 }
 
 interface AuthContextType {

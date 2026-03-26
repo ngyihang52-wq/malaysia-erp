@@ -32,6 +32,11 @@ export default function LoginForm() {
           router.push(`/verify-email?email=${encodeURIComponent(data.email)}`);
           return;
         }
+        // Trial expired — show a clear message
+        if (data.trialExpired) {
+          setError("Your 14-day free trial has ended. Please contact support@nexa-erp.com to continue.");
+          return;
+        }
         setError(data.error || 'Login failed');
         return;
       }
