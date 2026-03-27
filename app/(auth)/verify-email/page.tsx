@@ -1,8 +1,114 @@
 "use client";
+
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
+import {
+  Mail, CheckCircle2, XCircle, ArrowRight, ArrowLeft, RefreshCw,
+} from "lucide-react";
 
+/* ── Design tokens (shared across all auth pages) ── */
+const NAVY   = "#000080";
+const SLATE  = "#6D8196";
+const LIGHT  = "#ADD8E6";
+const BORDER = "#C8DFF0";
+const SANS   = "'IBM Plex Sans', sans-serif";
+const MONO   = "'IBM Plex Mono', monospace";
+
+/* ── Shared left panel ── */
+function LeftPanel() {
+  return (
+    <div
+      className="hidden lg:flex flex-col justify-between w-96 flex-shrink-0 p-10"
+      style={{ background: NAVY }}
+    >
+      <div>
+        {/* Logo */}
+        <div className="flex items-center gap-3 mb-16">
+          <div
+            className="w-9 h-9 flex items-center justify-center text-white flex-shrink-0"
+            style={{ background: "#6D8196", fontSize: 10, letterSpacing: "0.15em", fontWeight: 500 }}
+          >
+            ERP
+          </div>
+          <div>
+            <div className="text-sm tracking-wide text-white">NEXA Commerce</div>
+            <div className="text-[9px] tracking-[0.2em] uppercase" style={{ color: LIGHT }}>
+              Multi-Channel ERP
+            </div>
+          </div>
+        </div>
+
+        <h2
+          className="text-3xl mb-4"
+          style={{ color: "#FFFFFF", letterSpacing: "-0.02em", lineHeight: 1.2 }}
+        >
+          Almost<br />there
+        </h2>
+        <p className="text-sm leading-relaxed" style={{ color: LIGHT, opacity: 0.75 }}>
+          One last step — verify your email to activate your account and start your 14-day free trial.
+        </p>
+
+        <div className="mt-10 space-y-3">
+          <p className="text-[9px] tracking-[0.25em] uppercase" style={{ color: "#3A5A9A" }}>
+            What happens next
+          </p>
+          {[
+            "Check your inbox for the link",
+            "Click to verify your address",
+            "Sign in to your dashboard",
+          ].map((step, i) => (
+            <div key={step} className="flex items-start gap-3">
+              <div
+                className="w-5 h-5 flex items-center justify-center flex-shrink-0 text-white"
+                style={{ background: "#0A0A90", border: "1px solid #1A1AA8", fontSize: 9, fontFamily: MONO }}
+              >
+                {i + 1}
+              </div>
+              <span className="text-[11px] pt-0.5" style={{ color: LIGHT, opacity: 0.85 }}>{step}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <span className="w-1.5 h-1.5 rounded-full" style={{ background: LIGHT }} />
+        <p className="text-[10px]" style={{ color: "#3A5A9A", fontFamily: MONO }}>
+          malaysia_erp_prod connected
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/* ── Mobile logo ── */
+function MobileLogo() {
+  return (
+    <div className="flex items-center gap-3 mb-10 lg:hidden">
+      <div
+        className="w-8 h-8 flex items-center justify-center text-white flex-shrink-0"
+        style={{ background: "#6D8196", fontSize: 9, letterSpacing: "0.15em" }}
+      >
+        ERP
+      </div>
+      <div className="text-sm tracking-wide" style={{ color: NAVY }}>NEXA Commerce</div>
+    </div>
+  );
+}
+
+/* ── Icon box ── */
+function IconBox({ children, accent }: { children: React.ReactNode; accent: string }) {
+  return (
+    <div
+      className="w-12 h-12 flex items-center justify-center mb-6"
+      style={{ background: "#F0F8FF", border: `1px solid ${BORDER}` }}
+    >
+      <div style={{ color: accent }}>{children}</div>
+    </div>
+  );
+}
+
+/* ── Main content ── */
 function VerifyEmailContent() {
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
@@ -15,19 +121,17 @@ function VerifyEmailContent() {
   const [resending, setResending] = useState(false);
   const [resent, setResent] = useState(false);
 
-  // If token is present, verify it automatically
   useEffect(() => {
     if (!token) return;
-
     fetch(`/api/auth/verify-email?token=${token}`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success) {
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.success) {
           setStatus("success");
-          setMessage("Your email has been verified successfully!");
+          setMessage("Your email has been verified.");
         } else {
           setStatus("error");
-          setMessage(data.error || "Verification failed.");
+          setMessage(d.error || "Verification failed.");
         }
       })
       .catch(() => {
@@ -47,128 +151,191 @@ function VerifyEmailContent() {
         body: JSON.stringify({ email }),
       });
       const data = await res.json();
-      if (data.success) {
-        setResent(true);
-      }
-    } catch {
-      // silent fail
-    } finally {
+      if (data.success) setResent(true);
+    } catch { /* silent */ } finally {
       setResending(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: "linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%)" }}>
-      <div className="w-full max-w-md">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4" style={{ background: "#2563eb" }}>
-            <svg width="32" height="32" fill="none" viewBox="0 0 24 24">
-              <path d="M3 6h18M3 12h18M3 18h18" stroke="white" strokeWidth="2" strokeLinecap="round"/>
-            </svg>
-          </div>
-          <h1 className="text-3xl font-bold text-white">Malaysia ERP</h1>
-          <p className="text-slate-400 mt-1">Email Verification</p>
-        </div>
+    <div
+      className="min-h-screen flex"
+      style={{ fontFamily: SANS, background: "#FFFAFA" }}
+    >
+      <LeftPanel />
 
-        <div className="erp-card text-center">
-          {/* Verifying state */}
+      {/* Right panel */}
+      <div className="flex-1 flex flex-col items-center justify-center p-8">
+        <MobileLogo />
+
+        <div className="w-full max-w-sm">
+
+          {/* ── Verifying ── */}
           {status === "verifying" && (
-            <>
-              <div className="mx-auto mb-4 w-12 h-12 rounded-full flex items-center justify-center" style={{ background: "#eff6ff" }}>
-                <svg className="animate-spin" width="24" height="24" viewBox="0 0 24 24" fill="none">
-                  <circle cx="12" cy="12" r="10" stroke="#2563eb" strokeWidth="3" strokeDasharray="31.4 31.4" strokeLinecap="round"/>
-                </svg>
+            <div>
+              <div className="w-12 h-12 flex items-center justify-center mb-6" style={{ background: "#F0F8FF", border: `1px solid ${BORDER}` }}>
+                <div
+                  className="w-5 h-5 border-2 rounded-full animate-spin"
+                  style={{ borderColor: LIGHT, borderTopColor: "transparent" }}
+                />
               </div>
-              <h2 className="text-xl font-semibold mb-2" style={{ color: "#0f172a" }}>Verifying your email...</h2>
-              <p className="text-sm" style={{ color: "#64748b" }}>Please wait while we confirm your email address.</p>
-            </>
+              <p className="text-[9px] tracking-[0.25em] uppercase mb-1" style={{ color: SLATE }}>
+                Please wait
+              </p>
+              <h1 className="text-2xl mb-3" style={{ color: NAVY, letterSpacing: "-0.01em" }}>
+                Verifying your email…
+              </h1>
+              <p className="text-[12px]" style={{ color: SLATE }}>
+                Confirming your email address. This only takes a moment.
+              </p>
+            </div>
           )}
 
-          {/* Success state */}
+          {/* ── Success ── */}
           {status === "success" && (
-            <>
-              <div className="mx-auto mb-4 w-12 h-12 rounded-full flex items-center justify-center" style={{ background: "#f0fdf4" }}>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                  <path d="M5 13l4 4L19 7" stroke="#16a34a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </div>
-              <h2 className="text-xl font-semibold mb-2" style={{ color: "#0f172a" }}>{message}</h2>
-              <p className="text-sm mb-6" style={{ color: "#64748b" }}>Your account is now active. You can sign in to access your dashboard.</p>
+            <div>
+              <IconBox accent="#4A7B5F">
+                <CheckCircle2 size={22} />
+              </IconBox>
+              <p className="text-[9px] tracking-[0.25em] uppercase mb-1" style={{ color: "#4A7B5F" }}>
+                Verified
+              </p>
+              <h1 className="text-2xl mb-3" style={{ color: NAVY, letterSpacing: "-0.01em" }}>
+                {message}
+              </h1>
+              <p className="text-[12px] leading-relaxed mb-8" style={{ color: SLATE }}>
+                Your account is active and your 14-day free trial has started. Sign in to access your dashboard.
+              </p>
               <Link
                 href="/login"
-                className="erp-btn erp-btn-primary w-full justify-center"
+                className="w-full flex items-center justify-center gap-2 text-white text-[11px] tracking-[0.15em] uppercase py-3 hover:opacity-90 transition-opacity"
+                style={{ background: NAVY }}
               >
-                Sign In to Dashboard
+                Sign In to Dashboard <ArrowRight size={12} />
               </Link>
-            </>
+            </div>
           )}
 
-          {/* Error state */}
+          {/* ── Error ── */}
           {status === "error" && (
-            <>
-              <div className="mx-auto mb-4 w-12 h-12 rounded-full flex items-center justify-center" style={{ background: "#fef2f2" }}>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                  <path d="M6 18L18 6M6 6l12 12" stroke="#dc2626" strokeWidth="2.5" strokeLinecap="round"/>
-                </svg>
-              </div>
-              <h2 className="text-xl font-semibold mb-2" style={{ color: "#0f172a" }}>Verification Failed</h2>
-              <p className="text-sm mb-6" style={{ color: "#64748b" }}>{message}</p>
+            <div>
+              <IconBox accent="#B05050">
+                <XCircle size={22} />
+              </IconBox>
+              <p className="text-[9px] tracking-[0.25em] uppercase mb-1" style={{ color: "#B05050" }}>
+                Verification Failed
+              </p>
+              <h1 className="text-2xl mb-3" style={{ color: NAVY, letterSpacing: "-0.01em" }}>
+                Link invalid or expired
+              </h1>
+              <p className="text-[12px] leading-relaxed mb-8" style={{ color: SLATE }}>
+                {message} Verification links expire after <strong>24 hours</strong>.
+              </p>
               <Link
                 href="/register"
-                className="erp-btn erp-btn-primary w-full justify-center"
+                className="w-full flex items-center justify-center gap-2 text-white text-[11px] tracking-[0.15em] uppercase py-3 hover:opacity-90 transition-opacity mb-4"
+                style={{ background: NAVY }}
               >
-                Try Again
+                Create a New Account <ArrowRight size={12} />
               </Link>
-            </>
-          )}
-
-          {/* Waiting state — user just registered, check inbox */}
-          {status === "waiting" && (
-            <>
-              <div className="mx-auto mb-4 w-12 h-12 rounded-full flex items-center justify-center" style={{ background: "#eff6ff" }}>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                  <rect x="2" y="4" width="20" height="16" rx="3" stroke="#2563eb" strokeWidth="2"/>
-                  <path d="M2 7l10 6 10-6" stroke="#2563eb" strokeWidth="2" strokeLinecap="round"/>
-                </svg>
-              </div>
-              <h2 className="text-xl font-semibold mb-2" style={{ color: "#0f172a" }}>Check your email</h2>
-              <p className="text-sm mb-2" style={{ color: "#64748b" }}>
-                We sent a verification link to:
-              </p>
-              {email && (
-                <p className="text-sm font-semibold mb-4" style={{ color: "#0f172a" }}>{email}</p>
-              )}
-              <p className="text-sm mb-6" style={{ color: "#64748b" }}>
-                Click the link in the email to verify your account. The link expires in 24 hours.
-              </p>
-
-              {/* Resend button */}
-              {email && (
-                <button
-                  onClick={handleResend}
-                  disabled={resending || resent}
-                  className="erp-btn w-full justify-center mb-3"
-                  style={{
-                    background: resent ? "#f0fdf4" : "#f8fafc",
-                    color: resent ? "#16a34a" : "#475569",
-                    border: `1px solid ${resent ? "#bbf7d0" : "#e2e8f0"}`,
-                    opacity: resending ? 0.7 : 1,
-                  }}
-                >
-                  {resent ? "Verification email sent!" : resending ? "Sending..." : "Resend verification email"}
-                </button>
-              )}
-
               <Link
                 href="/login"
-                className="text-sm font-medium"
-                style={{ color: "#2563eb" }}
+                className="flex items-center gap-1.5 text-[10px] tracking-[0.12em] uppercase justify-center hover:opacity-70 transition-opacity"
+                style={{ color: SLATE }}
               >
-                Back to Sign In
+                <ArrowLeft size={11} /> Back to Sign In
               </Link>
-            </>
+            </div>
           )}
+
+          {/* ── Waiting — check your inbox ── */}
+          {status === "waiting" && (
+            <div>
+              <IconBox accent={NAVY}>
+                <Mail size={22} />
+              </IconBox>
+              <p className="text-[9px] tracking-[0.25em] uppercase mb-1" style={{ color: SLATE }}>
+                Check your inbox
+              </p>
+              <h1 className="text-2xl mb-3" style={{ color: NAVY, letterSpacing: "-0.01em" }}>
+                Verify your email
+              </h1>
+
+              {email ? (
+                <p className="text-[12px] leading-relaxed mb-1" style={{ color: SLATE }}>
+                  We sent a verification link to:
+                </p>
+              ) : (
+                <p className="text-[12px] leading-relaxed mb-6" style={{ color: SLATE }}>
+                  A verification link has been sent to your email address. Click it to activate your account.
+                </p>
+              )}
+
+              {email && (
+                <>
+                  <p
+                    className="text-[13px] mb-4"
+                    style={{ fontFamily: MONO, color: NAVY, letterSpacing: "0.02em" }}
+                  >
+                    {email}
+                  </p>
+                  <p className="text-[11px] mb-8" style={{ color: SLATE }}>
+                    Click the link in the email to verify your account. The link expires in{" "}
+                    <span style={{ color: NAVY }}>24 hours</span>.
+                    <br />
+                    <span className="text-[10px]">Can&apos;t find it? Check your spam folder.</span>
+                  </p>
+
+                  {/* Resend */}
+                  {resent ? (
+                    <div
+                      className="flex items-center gap-2 px-4 py-3 mb-4"
+                      style={{ background: "#F0F8FF", border: `1px solid ${BORDER}` }}
+                    >
+                      <CheckCircle2 size={13} style={{ color: "#4A7B5F", flexShrink: 0 }} />
+                      <p className="text-[11px]" style={{ color: "#4A7B5F" }}>
+                        Verification email sent — check your inbox.
+                      </p>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={handleResend}
+                      disabled={resending}
+                      className="w-full flex items-center justify-center gap-2 text-[11px] tracking-[0.15em] uppercase py-3 mb-4 hover:opacity-80 transition-opacity disabled:opacity-50"
+                      style={{
+                        background: "transparent",
+                        border: `1px solid ${BORDER}`,
+                        color: NAVY,
+                      }}
+                    >
+                      {resending ? (
+                        <>
+                          <RefreshCw size={12} className="animate-spin" />
+                          Sending…
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw size={12} />
+                          Resend verification email
+                        </>
+                      )}
+                    </button>
+                  )}
+                </>
+              )}
+
+              <div className="pt-5" style={{ borderTop: `1px solid ${BORDER}` }}>
+                <Link
+                  href="/login"
+                  className="flex items-center gap-1.5 text-[10px] tracking-[0.12em] uppercase justify-center hover:opacity-70 transition-opacity"
+                  style={{ color: SLATE }}
+                >
+                  <ArrowLeft size={11} /> Back to Sign In
+                </Link>
+              </div>
+            </div>
+          )}
+
         </div>
       </div>
     </div>
@@ -177,11 +344,19 @@ function VerifyEmailContent() {
 
 export default function VerifyEmailPage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center" style={{ background: "linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%)" }}>
-        <div className="text-white text-sm">Loading...</div>
-      </div>
-    }>
+    <Suspense
+      fallback={
+        <div
+          className="min-h-screen flex items-center justify-center"
+          style={{ background: "#FFFAFA" }}
+        >
+          <div
+            className="w-8 h-8 border-2 rounded-full animate-spin"
+            style={{ borderColor: LIGHT, borderTopColor: "transparent" }}
+          />
+        </div>
+      }
+    >
       <VerifyEmailContent />
     </Suspense>
   );
